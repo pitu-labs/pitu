@@ -121,10 +121,20 @@ The IPC watcher routes by subdirectory name within `IPCDir`:
 
 **On incoming message:**
 1. Look up `chatID` in warm pool
-2. Hit → reset TTL timer, write input file
-3. Miss → `podman run` with mounts, register handle, write input file
+2. Hit → reset TTL timer, invoke OpenCode via `podman exec`
+3. Miss → `podman run` with mounts, register handle, invoke OpenCode via `podman exec`
+
+**OpenCode is invoked per-message, not per-container.** The Podman container stays alive between messages (warm pool). For each new message, the harness calls:
+
+```
+podman exec <container_id> opencode run --input /workspace/ipc/input/{file}
+```
+
+OpenCode starts, processes the message, writes IPC files to `/workspace/ipc/`, and exits. Session memory is persisted across invocations via `/workspace/memory/`. The container's warm state eliminates OS-level cold-start overhead; only OpenCode's own startup time applies.
 
 **Podman is called via `exec.Command("podman", ...)`** — no Go bindings. This keeps the orchestration code readable and the binary small.
+
+**Note:** The exact CLI flag for non-interactive input (`--input` or equivalent) must be verified against OpenCode's documentation during implementation. The logical contract is: OpenCode is invoked with a path to the inbound message JSON and exits when done.
 
 ### Container Mounts
 
@@ -143,13 +153,15 @@ The IPC watcher routes by subdirectory name within `IPCDir`:
 ```
 /workspace/
 ├── ipc/
-│   ├── input/        # host writes inbound messages here
-│   ├── messages/     # agent writes outbound Telegram messages here
-│   ├── tasks/        # agent writes schedule/pause/list task requests here
-│   └── groups/       # agent writes registerGroup calls here (main agent only)
+│   ├── input/        # host writes inbound message JSON; path passed to OpenCode via podman exec
+│   ├── messages/     # agent writes outbound Telegram messages here (via pitu-mcp)
+│   ├── tasks/        # agent writes schedule/pause/list task requests here (via pitu-mcp)
+│   └── groups/       # agent writes registerGroup calls here (via pitu-mcp, main agent only)
 ├── memory/
 └── skills/
 ```
+
+The `input/` directory is written by the harness and consumed by OpenCode when invoked via `podman exec`. It is not watched by fsnotify. Files in `input/` serve as an audit log of inbound messages; they are not deleted after processing. The `messages/`, `tasks/`, and `groups/` directories are watched by the host's `ipc.Watcher` via fsnotify and files are deleted after successful processing.
 
 ### Inbound Message Format (host → container)
 
@@ -188,9 +200,31 @@ Swarm topology and coordination are fully delegated to the agent SDK (OpenCode +
 
 ## Tool Architecture
 
+### OpenCode Config Generation
+
+The harness generates an OpenCode config as JSON and injects it via the `OPENCODE_CONFIG_CONTENT` environment variable when starting the container (OpenCode reads this natively). This is the mechanism that wires all three tool layers together:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "pitu": {
+      "type": "local",
+      "command": ["/usr/local/bin/pitu-mcp"],
+      "environment": {
+        "PITU_CHAT_ID": "<injected at runtime>"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+The `PITU_CHAT_ID` value is interpolated per-container by the `container` package at `podman run` time. No config file is written to disk; the entire config is passed inline.
+
 ### Layer 1 — Built-in SDK Tools
 
-Registered in the OpenCode config the harness generates per container. Always available to all agents:
+Available to all agents via OpenCode's default toolset:
 
 ```
 Bash, Read, Write, Edit, Glob, Grep
@@ -207,13 +241,15 @@ A small Go binary built alongside the main harness and bundled into the containe
 
 **Exposed tools:**
 
-| Tool | Description |
-|---|---|
-| `mcp__pitu__sendMessage(text, sender)` | Send a message to the originating chat mid-run. `chat_id` is injected from env; not an agent-supplied parameter |
-| `mcp__pitu__scheduleTask(name, schedule, prompt)` | Create a recurring (cron expression) or one-shot (RFC3339 timestamp) task |
-| `mcp__pitu__listTasks()` | List current scheduled tasks for this chat |
-| `mcp__pitu__pauseTask(id)` | Pause a scheduled task by ID |
-| `mcp__pitu__registerGroup(name, description)` | Register a new addressable group (main agent only) |
+| Tool | Parameters | Returns |
+|---|---|---|
+| `mcp__pitu__sendMessage` | `text: string, sender: string` | `{ "ok": true }` |
+| `mcp__pitu__scheduleTask` | `name: string, schedule: string, prompt: string` | `{ "id": "<uuid>" }` — the task ID |
+| `mcp__pitu__listTasks` | _(none)_ | `[{ "id": "<uuid>", "name": string, "schedule": string, "paused": bool }]` |
+| `mcp__pitu__pauseTask` | `id: string` | `{ "ok": true }` |
+| `mcp__pitu__registerGroup` | `name: string, description: string` | `{ "ok": true }` |
+
+`chat_id` is never a parameter — it is always injected from `PITU_CHAT_ID` by `pitu-mcp`.
 
 **Design rule:** MCP tools write JSON files to `/workspace/ipc/` subdirectories. They perform no side effects themselves. The host process is the only actor with real side effects (Telegram delivery, SQLite writes, scheduler updates).
 
@@ -302,7 +338,7 @@ pitu/
 │   ├── skills/                # AgentSkills discovery, catalog builder, AGENTS.md generator
 │   └── scheduler/             # cron/interval task runner
 ├── container/
-│   └── Containerfile          # multi-stage build: stage 1 copies pitu-mcp binary; stage 2 installs opencode and global npm packages
+│   └── Containerfile          # multi-stage build: stage 1 compiles pitu-mcp from Go source; stage 2 is the runtime image with opencode and global npm packages
 ├── .pitu/skills/              # bundled operator skills
 │   ├── configure-telegram/
 │   │   └── SKILL.md
@@ -361,7 +397,7 @@ Files written to `/workspace/ipc/tasks/` by `pitu-mcp`:
 }
 ```
 
-`action` is one of `"create"`, `"pause"`, or `"list"`. For `"pause"`, only `action`, `id`, and `chat_id` are required. For `"list"`, only `action` and `chat_id` are required. `schedule` accepts either a cron expression (5-field) or an RFC3339 timestamp for one-shot tasks. Task state is persisted in SQLite; the scheduler reads from the database on restart, not from IPC files.
+`action` is one of `"create"`, `"pause"`, or `"list"`. For `"pause"`, only `action`, `id`, and `chat_id` are required — `id` is a UUID string returned by a prior `"create"` action. For `"list"`, only `action` and `chat_id` are required. `schedule` accepts either a 5-field cron expression or an RFC3339 timestamp for one-shot tasks. Task state is persisted in SQLite; the scheduler reads from the database on restart, not from IPC files.
 
 ---
 
