@@ -1,0 +1,33 @@
+package ipc
+
+// InboundMessage is written by the harness to ipc/input/ and passed to OpenCode.
+type InboundMessage struct {
+	ChatID    string `json:"chat_id"`
+	From      string `json:"from"`
+	Text      string `json:"text"`
+	MessageID string `json:"message_id"`
+}
+
+// OutboundMessage is written by pitu-mcp to ipc/messages/.
+type OutboundMessage struct {
+	ChatID string `json:"chat_id"`
+	Text   string `json:"text"`
+	Type   string `json:"type"`
+}
+
+// TaskFile is written by pitu-mcp to ipc/tasks/.
+type TaskFile struct {
+	Action   string `json:"action"`       // "create" | "pause" | "list"
+	ID       string `json:"id,omitempty"` // required for "pause"
+	Name     string `json:"name,omitempty"`
+	Schedule string `json:"schedule,omitempty"` // cron or RFC3339
+	Prompt   string `json:"prompt,omitempty"`
+	ChatID   string `json:"chat_id"`
+}
+
+// GroupFile is written by pitu-mcp to ipc/groups/.
+type GroupFile struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ChatID      string `json:"chat_id"`
+}
