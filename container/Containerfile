@@ -1,0 +1,31 @@
+# Stage 1: Build pitu-mcp
+FROM golang:1.25-alpine AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /pitu-mcp ./cmd/pitu-mcp
+
+# Stage 2: Runtime image
+FROM debian:bookworm-slim
+
+# Install Node.js (for opencode and npm global packages)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install OpenCode
+RUN npm install -g opencode-ai
+
+# Copy pitu-mcp binary from builder
+COPY --from=builder /pitu-mcp /usr/local/bin/pitu-mcp
+RUN chmod +x /usr/local/bin/pitu-mcp
+
+# Create workspace directories
+RUN mkdir -p /workspace/ipc/input /workspace/ipc/messages /workspace/ipc/tasks /workspace/ipc/groups \
+             /workspace/memory /workspace/skills
+
+WORKDIR /workspace
+
+# Default: keep container alive; OpenCode is invoked per-message via podman exec
+CMD ["sleep", "infinity"]
