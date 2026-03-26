@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pitu-dev/pitu/internal/config"
 	"github.com/pitu-dev/pitu/internal/container"
 	"github.com/pitu-dev/pitu/internal/ipc"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +47,22 @@ func TestWriteInputFile_CreatesCorrectFile(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &got))
 	assert.Equal(t, "test message", got.Text)
 	assert.Equal(t, "m42", got.MessageID)
+}
+
+func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Container.Image = "pitu-agent:test"
+	cfg.Container.MemoryLimit = "256m"
+	cfg.Container.TTL = "5m"
+
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills")
+
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "pitu-agent:test")
+	assert.Contains(t, joined, "/host/ipc")
+	assert.Contains(t, joined, "PITU_CHAT_ID=chat-99")
+	assert.Contains(t, joined, "256m")
 }
 
 func TestWriteInputFile_FileNameIncludesTimestamp(t *testing.T) {
