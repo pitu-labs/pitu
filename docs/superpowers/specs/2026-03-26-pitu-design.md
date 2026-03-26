@@ -69,7 +69,7 @@ Telegram Bot API
 │  │  └── pitu-mcp (stdio MCP) │   │
 │  └───────────────────────────┘   │
 │  /workspace/ipc/    (RW)         │
-│  /workspace/memory/ (RW, persisted across runs) │
+│  /workspace/memory/ (RW, persisted; CONTEXT.md)  │
 │  /workspace/skills/ (RO, shared) │
 └──────────────────────────────────┘
       │  (fsnotify on ipc/)
@@ -107,13 +107,17 @@ A `sync.Map` holds `chatID → ContainerHandle`:
 
 ```go
 type ContainerHandle struct {
-    ID          string        // Podman container ID
-    InputDir    string        // /workspace/ipc/input/ host path
-    OutputDir   string        // /workspace/ipc/ host path
+    ID           string        // Podman container ID
+    IPCDir       string        // host path of the /workspace/ipc/ mount root
     LastActivity time.Time
-    TTLTimer    *time.Timer
+    TTLTimer     *time.Timer
 }
 ```
+
+The IPC watcher routes by subdirectory name within `IPCDir`:
+- `IPCDir/messages/` → Telegram sender
+- `IPCDir/tasks/`    → scheduler
+- `IPCDir/groups/`   → store (group registration)
 
 **On incoming message:**
 1. Look up `chatID` in warm pool
@@ -127,7 +131,7 @@ type ContainerHandle struct {
 | Mount | Mode | Purpose |
 |---|---|---|
 | `/workspace/ipc/` | RW | All agent↔host communication |
-| `/workspace/memory/` | RW | Persistent per-chat state: AGENTS.md, memory files |
+| `/workspace/memory/` | RW | Persistent per-chat state: CONTEXT.md, memory files |
 | `/workspace/skills/` | RO | Merged view of all discovered skills |
 
 ---
@@ -172,11 +176,13 @@ File name: `{unix_timestamp_ns}-{message_id}.json`
 
 File name: `{unix_timestamp_ns}-{seq}.json`
 
-The `chat_id` is the only routing key. No session tokens, no agent identity headers. The host IPC watcher reads the file, routes to the appropriate Telegram chat, and deletes the file.
+**`chat_id` is injected by the harness, not supplied by the agent.** At container start, the harness writes `PITU_CHAT_ID` as an environment variable into the container. The `pitu-mcp` binary reads this value at startup and embeds it in every IPC file it writes. The agent never passes `chat_id` as a parameter — it has no ability to route to an arbitrary chat. This prevents a compromised agent from messaging chats it did not originate from.
+
+The host IPC watcher reads each file, routes to the appropriate Telegram chat using the embedded `chat_id`, and deletes the file.
 
 ### Agent Swarms
 
-Swarm coordination is fully delegated to the agent SDK (OpenCode + LLM). When an agent spawns a sub-agent, it uses the `TeamCreate`/`SendMessage` SDK tools. The host treats all messages uniformly — there is no swarm-specific code in the harness.
+Swarm topology and coordination are fully delegated to the agent SDK (OpenCode + LLM). When an agent spawns a sub-agent, it uses the `TeamCreate`/`SendMessage` SDK tools. Group registration — when an agent needs to register a new addressable group — goes through the standard `mcp__pitu__registerGroup` IPC action, handled by the host's store package. There is no swarm tracking, topology management, or routing logic in the harness beyond the standard IPC dispatch.
 
 ---
 
@@ -203,11 +209,11 @@ A small Go binary built alongside the main harness and bundled into the containe
 
 | Tool | Description |
 |---|---|
-| `mcp__pitu__sendMessage(text, sender)` | Send a message to the originating chat mid-run |
-| `mcp__pitu__scheduleTask(...)` | Create a recurring or one-shot scheduled task |
-| `mcp__pitu__listTasks()` | List current scheduled tasks |
-| `mcp__pitu__pauseTask(id)` | Pause a scheduled task |
-| `mcp__pitu__registerGroup(...)` | Register a new chat group (main agent only) |
+| `mcp__pitu__sendMessage(text, sender)` | Send a message to the originating chat mid-run. `chat_id` is injected from env; not an agent-supplied parameter |
+| `mcp__pitu__scheduleTask(name, schedule, prompt)` | Create a recurring (cron expression) or one-shot (RFC3339 timestamp) task |
+| `mcp__pitu__listTasks()` | List current scheduled tasks for this chat |
+| `mcp__pitu__pauseTask(id)` | Pause a scheduled task by ID |
+| `mcp__pitu__registerGroup(name, description)` | Register a new addressable group (main agent only) |
 
 **Design rule:** MCP tools write JSON files to `/workspace/ipc/` subdirectories. They perform no side effects themselves. The host process is the only actor with real side effects (Telegram delivery, SQLite writes, scheduler updates).
 
@@ -244,11 +250,13 @@ The `/workspace/skills/` mount is a merged read-only view of all discovered skil
 
 ### Catalog Injection
 
-At first container boot, the harness generates and writes an `AGENTS.md` to `/workspace/memory/`. This file contains:
+At first container boot (i.e., when `/workspace/memory/CONTEXT.md` does not yet exist), the harness generates and writes `CONTEXT.md` to `/workspace/memory/`. On subsequent boots for the same chat, the file is left unchanged so that accumulated per-chat memory is preserved. This file contains:
 
 1. **Skills catalog** — name + description per skill (~50–100 tokens each), with path to `SKILL.md`
 2. **Behavioral instruction** — activate skills by reading the listed `SKILL.md` (OpenCode is AgentSkills-compatible natively)
-3. **Chat context** — `chat_id`, platform name, summary of any prior memory
+3. **Chat context** — `chat_id`, platform name, any initial context the operator has configured
+
+`CONTEXT.md` is distinct from the root `AGENTS.md`. The root `AGENTS.md` is for the operator's OpenCode instance managing the Pitu source code. `CONTEXT.md` is for the agent running inside the container for a specific chat. They have different audiences and different lifecycles.
 
 ### Bundled Operator Skills
 
@@ -289,12 +297,12 @@ pitu/
 │   ├── store/                 # SQLite: messages, sessions, tasks
 │   ├── telegram/              # long-poll + sender (raw HTTP)
 │   ├── queue/                 # per-chat FIFO, global concurrency cap
-│   ├── container/             # podman exec wrapper, warm-pool, OpenCode config generator
+│   ├── container/             # podman exec wrapper, warm-pool, OpenCode config generator, PITU_CHAT_ID injector
 │   ├── ipc/                   # fsnotify watcher, inbound writer, outbound router
 │   ├── skills/                # AgentSkills discovery, catalog builder, AGENTS.md generator
 │   └── scheduler/             # cron/interval task runner
 ├── container/
-│   └── Containerfile          # installs opencode, pitu-mcp binary, global npm packages
+│   └── Containerfile          # multi-stage build: stage 1 copies pitu-mcp binary; stage 2 installs opencode and global npm packages
 ├── .pitu/skills/              # bundled operator skills
 │   ├── configure-telegram/
 │   │   └── SKILL.md
@@ -339,6 +347,22 @@ extra_paths = []   # additional skill directories beyond defaults
 path = "~/.pitu/pitu.db"
 ```
 
+### Task File Schema
+
+Files written to `/workspace/ipc/tasks/` by `pitu-mcp`:
+
+```json
+{
+  "action": "create",
+  "name": "daily-summary",
+  "schedule": "0 9 * * *",
+  "prompt": "Send the user a summary of yesterday's activity",
+  "chat_id": "123456"
+}
+```
+
+`action` is one of `"create"`, `"pause"`, or `"list"`. For `"pause"`, only `action`, `id`, and `chat_id` are required. For `"list"`, only `action` and `chat_id` are required. `schedule` accepts either a cron expression (5-field) or an RFC3339 timestamp for one-shot tasks. Task state is persisted in SQLite; the scheduler reads from the database on restart, not from IPC files.
+
 ---
 
 ## Security Properties
@@ -346,7 +370,7 @@ path = "~/.pitu/pitu.db"
 1. **No daemon, no root** — Podman runs rootless; the harness binary needs no elevated privileges
 2. **Fixed MCP surface** — the only agent→host channel is the Pitu MCP server; it writes files only, performs no side effects
 3. **Read-only skills mount** — agents can read skills but not modify them
-4. **No network from containers** — containers have no direct network access to Telegram or any external service; all outbound calls go through the host
+4. **Telegram access is host-only** — containers cannot reach the Telegram API directly; all Telegram delivery goes through the host's IPC channel. Containers do have general outbound internet access to support `WebSearch` and `WebFetch` SDK tools. Operators who require stricter network isolation can apply Podman network policies at the host level
 5. **Auditable core** — ~4,000 lines, ~15 files; the entire codebase is readable in one sitting
 6. **Deterministic IPC routing** — `chat_id` is the only routing key; no ambient authority
 
