@@ -50,7 +50,7 @@ If both exist, skip to Phase 3.
 go build ./cmd/pitu && go build ./cmd/pitu-mcp
 ```
 
-**Verify:** Both commands exited 0 and `./pitu` is present in the project root.
+**Verify:** Both commands exited 0 and both `./pitu` and `./pitu-mcp` are present in the project root.
 
 ---
 
