@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -70,6 +71,9 @@ func (m *Manager) ensureContainer(ctx context.Context, chatID string) (*Handle, 
 func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, error) {
 	ipcDir := filepath.Join(m.dataDir, chatID, "ipc")
 	memDir := filepath.Join(m.dataDir, chatID, "memory")
+	if err := os.MkdirAll(ipcDir, 0700); err != nil {
+		return nil, fmt.Errorf("mkdir ipc: %w", err)
+	}
 
 	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir)
 	out, err := exec.CommandContext(ctx, "podman", args...).Output()
