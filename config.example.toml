@@ -2,7 +2,7 @@
 bot_token = "YOUR_BOT_TOKEN_HERE"
 
 [container]
-image          = "ghcr.io/pitu-dev/pitu-agent:latest"
+image          = "localhost/pitu-agent:latest"
 ttl            = "5m"
 max_concurrent = 5
 memory_limit   = "512m"
