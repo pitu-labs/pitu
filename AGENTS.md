@@ -22,7 +22,7 @@ cmd/pitu/        main harness binary
 cmd/pitu-mcp/    MCP server (runs inside containers)
 internal/        all library packages (one responsibility each)
 container/       Containerfile for the agent container image
-.pitu/skills/    bundled operator skills
+.agents/skills/  bundled operator skills (AgentSkills-compatible)
 ```
 
 ## Collaboration Policy
@@ -30,13 +30,13 @@ container/       Containerfile for the agent container image
 **This repository accepts:**
 - Security fixes
 - Bug fixes
-- New skill proposals (as `.pitu/skills/<name>/SKILL.md`)
+- New skill proposals (as `.agents/skills/<name>/SKILL.md`)
 
 **Features are added by users** using their own coding agents (OpenCode, Gemini CLI, etc.) acting on their own forks. Do not open feature PRs upstream.
 
 ## Skills
 
-User skills go in `~/.agents/skills/` or `~/.pitu/skills/`. Skills follow the [AgentSkills specification](https://agentskills.io/specification). See `.pitu/skills/` for examples.
+User skills go in `~/.agents/skills/` or `~/.pitu/skills/`. Skills follow the [AgentSkills specification](https://agentskills.io/specification). See `.agents/skills/` for examples.
 
 ## Key Design Constraints
 
