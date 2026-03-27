@@ -21,6 +21,7 @@ If both are present, skip to Phase 2.
 
 1. Detect the operating system:
    - Run `uname`. If output is `Darwin`, this is macOS.
+   - If macOS: run `command -v brew`. Exit code 0 means Homebrew is present; non-zero means it is absent.
    - On Linux, read `/etc/os-release` and check the `ID` field.
 
 2. Select the package manager and install only what is missing:
@@ -72,7 +73,7 @@ mkdir -p ~/.pitu && cp config.example.toml ~/.pitu/config.toml
 
 ### Phase 4 — Telegram
 
-Invoke the `/configure-telegram` skill now. It will guide you through setting the bot token and verifying the bot is reachable.
+Invoke the `/configure-telegram` skill now. It will guide you through setting the bot token.
 
 Return here once `/configure-telegram` completes successfully. Before continuing to Phase 5, confirm that `~/.pitu/config.toml` contains a non-empty `bot_token` value under `[telegram]`:
 
@@ -107,7 +108,7 @@ This may take several minutes on the first run as base layers are downloaded.
 1. Start the harness:
 
    ```bash
-   ./pitu
+   ./pitu > /tmp/pitu-smoke.log 2>&1 &
    ```
 
 2. Tell the user: "Please send `/start` to your Telegram bot now."
@@ -117,6 +118,6 @@ This may take several minutes on the first run as base layers are downloaded.
 4. **If the bot responds:** setup is complete. Summarise what was installed and configured during this session.
 
 5. **If no response arrives within 30 seconds:**
-   - Show the last 20 lines of `pitu` output.
+   - Show the last 20 lines of the log: `tail -20 /tmp/pitu-smoke.log`
    - Ask the user to verify their bot token in `~/.pitu/config.toml`.
    - Suggest re-running `/configure-telegram` if the token looks wrong.
