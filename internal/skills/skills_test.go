@@ -92,4 +92,5 @@ func TestWriteContext_ContainsCapabilitiesBlock(t *testing.T) {
 	assert.Contains(t, content, "Capabilities & Limitations")
 	assert.Contains(t, content, "TeamCreate")
 	assert.Contains(t, content, "single-agent instance")
+	assert.NotContains(t, content, "// TODO")
 }
