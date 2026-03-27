@@ -59,3 +59,11 @@ func TestHandleListTasks_WritesFile(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &tf))
 	assert.Equal(t, "list", tf.Action)
 }
+
+func TestHandleSpawnAgent_ReturnsNotSupportedError(t *testing.T) {
+	h := &toolHandlers{ipcDir: t.TempDir(), chatID: "chat-1"}
+	result, err := h.handleSpawnAgent("researcher", "find papers on Go concurrency")
+	assert.Empty(t, result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not yet supported")
+}
