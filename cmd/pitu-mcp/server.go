@@ -85,8 +85,11 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		role := req.GetString("role", "")
 		prompt := req.GetString("prompt", "")
-		_, err := h.handleSpawnAgent(role, prompt)
-		return mcp.NewToolResultError(err.Error()), nil
+		result, err := h.handleSpawnAgent(role, prompt)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(result), nil
 	})
 
 	return s
