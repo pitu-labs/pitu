@@ -89,6 +89,7 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+		// Success branch: unreachable while stub is in place; activate when real implementation lands.
 		return mcp.NewToolResultText(result), nil
 	})
 
