@@ -40,9 +40,9 @@ If both are present, skip to Phase 2.
 
 ### Phase 2 — Build
 
-**Check:** Test whether `./pitu` exists in the project root.
+**Check:** Test whether both `./pitu` and `./pitu-mcp` exist in the project root.
 
-If it exists, skip to Phase 3.
+If both exist, skip to Phase 3.
 
 **Fix:**
 
@@ -74,7 +74,13 @@ mkdir -p ~/.pitu && cp config.example.toml ~/.pitu/config.toml
 
 Invoke the `/configure-telegram` skill now. It will guide you through setting the bot token and verifying the bot is reachable.
 
-Return here once `/configure-telegram` completes successfully.
+Return here once `/configure-telegram` completes successfully. Before continuing to Phase 5, confirm that `~/.pitu/config.toml` contains a non-empty `bot_token` value under `[telegram]`:
+
+```bash
+grep "bot_token" ~/.pitu/config.toml
+```
+
+The output must show a non-empty token value. If `bot_token` is still `"YOUR_BOT_TOKEN_HERE"` or empty, re-run `/configure-telegram` before proceeding.
 
 ---
 
