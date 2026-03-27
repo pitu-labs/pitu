@@ -82,3 +82,14 @@ func TestWriteContext_DoesNotOverwriteExisting(t *testing.T) {
 	data, _ := os.ReadFile(existing)
 	assert.True(t, strings.HasPrefix(string(data), "# existing content"))
 }
+
+func TestWriteContext_ContainsCapabilitiesBlock(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, skills.WriteContext(tmp, "chat-99", nil))
+	data, err := os.ReadFile(filepath.Join(tmp, "CONTEXT.md"))
+	require.NoError(t, err)
+	content := string(data)
+	assert.Contains(t, content, "Capabilities & Limitations")
+	assert.Contains(t, content, "TeamCreate")
+	assert.Contains(t, content, "single-agent instance")
+}
