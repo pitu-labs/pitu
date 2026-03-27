@@ -104,7 +104,7 @@ func (m *Manager) execOpenCode(ctx context.Context, containerID, inputPath strin
 	// opencode run -f <file> passes the file as an attachment.
 	// The message instructs OpenCode to process the attached inbound message.
 	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
-	args := []string{"exec", containerID, "opencode", "run", "-f", containerPath, "Process the attached inbound message and respond via mcp__pitu__sendMessage."}
+	args := []string{"exec", containerID, "opencode", "run", "-f", containerPath, "--", "Process the attached inbound message and respond via mcp__pitu__sendMessage."}
 	out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("podman exec opencode: %w (output: %s)", err, out)
