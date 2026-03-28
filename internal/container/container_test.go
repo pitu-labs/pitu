@@ -65,6 +65,25 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 	assert.Contains(t, joined, "256m")
 }
 
+func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
+	cfg := &config.Config{}
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "opencode run")
+	assert.Contains(t, joined, "-f /workspace/ipc/input/msg.json")
+	assert.NotContains(t, joined, " -c ")
+}
+
+func TestBuildExecArgs_CFlagPresent_WhenHasSession(t *testing.T) {
+	cfg := &config.Config{}
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", true)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, " -c ")
+	assert.Contains(t, joined, "-f /workspace/ipc/input/msg.json")
+}
+
 func TestWriteInputFile_FileNameIncludesTimestamp(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "input"), 0755))

@@ -18,6 +18,7 @@ import (
 type Handle struct {
 	ID           string
 	IPCDir       string
+	hasSession   bool
 	lastActivity time.Time
 	ttlTimer     *time.Timer
 }
@@ -58,7 +59,7 @@ func (m *Manager) Dispatch(ctx context.Context, chatID string, msg ipc.InboundMe
 	if err != nil {
 		return err
 	}
-	return m.execOpenCode(ctx, handle.ID, inputPath)
+	return m.execOpenCode(ctx, handle, inputPath)
 }
 
 func (m *Manager) ensureContainer(ctx context.Context, chatID string) (*Handle, error) {
@@ -98,17 +99,13 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 	return handle, nil
 }
 
-func (m *Manager) execOpenCode(ctx context.Context, containerID, inputPath string) error {
-	// inputPath is the host path; inside the container the mount is at /workspace/ipc/
-	// The file is at ipcDir/input/{file} on the host = /workspace/ipc/input/{file} in container.
-	// opencode run -f <file> passes the file as an attachment.
-	// The message instructs OpenCode to process the attached inbound message.
-	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
-	args := []string{"exec", containerID, "opencode", "run", "-f", containerPath, "--", "Process the attached inbound message and respond via mcp__pitu__sendMessage."}
+func (m *Manager) execOpenCode(ctx context.Context, handle *Handle, inputPath string) error {
+	args := m.BuildExecArgs(handle.ID, inputPath, handle.hasSession)
 	out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("podman exec opencode: %w (output: %s)", err, out)
 	}
+	handle.hasSession = true
 	return nil
 }
 
@@ -146,6 +143,17 @@ func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir string) []strin
 		m.cfg.Container.Image,
 		"sleep", "infinity", // container stays alive; OpenCode invoked per-message via exec
 	}
+}
+
+// BuildExecArgs returns the podman exec arguments for running OpenCode on a message. Public for testability.
+func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession bool) []string {
+	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
+	args := []string{"exec", containerID, "opencode", "run"}
+	if continueSession {
+		args = append(args, "-c")
+	}
+	args = append(args, "-f", containerPath, "--", "Process the attached inbound message and respond via mcp__pitu__sendMessage.")
+	return args
 }
 
 func (m *Manager) ttl() time.Duration {
