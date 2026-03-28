@@ -187,3 +187,20 @@ func TestGenerateOpenCodeConfig_EmptyModelOmitsProviderAndModel(t *testing.T) {
 	_, hasProvider := parsed["provider"]
 	assert.False(t, hasProvider, "provider key must be absent when ModelConfig is empty")
 }
+
+func TestManager_BuildRunArgs_InjectsModelWhenConfigured(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Container.Image = "pitu-agent:test"
+	cfg.Container.MemoryLimit = "256m"
+	cfg.Container.TTL = "5m"
+	cfg.Model.Provider = "anthropic"
+	cfg.Model.Model = "claude-sonnet-4-5"
+	cfg.Model.APIKey = "sk-ant-test"
+
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
+
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "anthropic")
+	assert.Contains(t, joined, "claude-sonnet-4-5")
+}
