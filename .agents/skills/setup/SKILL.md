@@ -119,11 +119,15 @@ This may take several minutes on the first run as base layers are downloaded.
 
 ### Phase 6 — Smoke Test
 
-1. Start the harness:
+1. Install and start the harness as a system service:
 
    ```bash
-   ./pitu > /tmp/pitu-smoke.log 2>&1 &
+   ./pitu service install
    ```
+
+   This registers pitu with the OS service manager (systemd on Linux, launchd on macOS),
+   starts it immediately, and enables autostart on boot. The service will restart automatically
+   if it crashes.
 
 2. Tell the user: "Please send `/start` to your Telegram bot now."
 
@@ -132,6 +136,7 @@ This may take several minutes on the first run as base layers are downloaded.
 4. **If the bot responds:** setup is complete. Summarise what was installed and configured during this session.
 
 5. **If no response arrives within 30 seconds:**
-   - Show the last 20 lines of the log: `tail -20 /tmp/pitu-smoke.log`
+   - Show the last 20 lines of the service log: `./pitu service logs -n 20`
+   - Check service status: `./pitu service status`
    - Ask the user to verify their bot token in `~/.pitu/config.toml`.
    - Suggest re-running `/configure-telegram` if the token looks wrong.
