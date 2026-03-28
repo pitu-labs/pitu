@@ -81,6 +81,44 @@ func TestRouter_DispatchesAgentFile(t *testing.T) {
 	assert.Equal(t, "find papers", gotAgent.Prompt)
 }
 
+func TestWatcher_PicksUpAgentFiles(t *testing.T) {
+	tmp := t.TempDir()
+
+	var received []ipc.AgentFile
+	var mu sync.Mutex
+
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(a ipc.AgentFile) {
+			mu.Lock()
+			received = append(received, a)
+			mu.Unlock()
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	w, err := ipc.NewWatcher(r)
+	require.NoError(t, err)
+	require.NoError(t, w.RegisterDir(tmp))
+	go w.Watch(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	af := ipc.AgentFile{Action: "spawn", SubAgentID: "u1", Role: "Writer", Prompt: "write a poem", ChatID: "c1"}
+	data, _ := json.Marshal(af)
+	agentsDir := filepath.Join(tmp, "agents")
+	require.NoError(t, os.WriteFile(filepath.Join(agentsDir, "ts-100.json"), data, 0644))
+
+	time.Sleep(200 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, received, 1)
+	assert.Equal(t, "Writer", received[0].Role)
+}
+
 func TestWatcher_PicksUpNewFiles(t *testing.T) {
 	tmp := t.TempDir()
 
