@@ -3,7 +3,10 @@ package service
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strings"
 )
 
 // LaunchdManager implements Manager for macOS launchd.
@@ -70,11 +73,127 @@ func PlistContent(binary, home string) string {
 `, binary, home, home, logPath, errLogPath)
 }
 
-// Stub lifecycle methods — replaced with real implementations in Task 5.
+func (m *LaunchdManager) Install() error {
+	binary, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("service: resolve binary path: %w", err)
+	}
+	home, _ := os.UserHomeDir()
 
-func (m *LaunchdManager) Install() error          { return fmt.Errorf("not implemented") }
-func (m *LaunchdManager) Uninstall() error        { return fmt.Errorf("not implemented") }
-func (m *LaunchdManager) Start() error            { return fmt.Errorf("not implemented") }
-func (m *LaunchdManager) Stop() error             { return fmt.Errorf("not implemented") }
-func (m *LaunchdManager) Status() (string, error) { return "", fmt.Errorf("not implemented") }
-func (m *LaunchdManager) Logs(n int) error        { return fmt.Errorf("not implemented") }
+	// Ensure log directory exists before launchd tries to open the log files.
+	if err := os.MkdirAll(filepath.Join(home, ".pitu", "logs"), 0700); err != nil {
+		return fmt.Errorf("service: mkdir log dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(m.plistPath()), 0700); err != nil {
+		return fmt.Errorf("service: mkdir LaunchAgents: %w", err)
+	}
+
+	// Unload any existing registration before overwriting the plist.
+	exec.Command("launchctl", "unload", m.plistPath()).Run() // best-effort
+
+	if err := os.WriteFile(m.plistPath(), []byte(PlistContent(binary, home)), 0644); err != nil {
+		return fmt.Errorf("service: write plist: %w", err)
+	}
+	if out, err := exec.Command("launchctl", "load", m.plistPath()).CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl load: %w\n%s", err, out)
+	}
+
+	m.writeNewsyslogConfig(home)
+
+	fmt.Printf("pitu service installed and started.\nPlist: %s\nLogs:  %s\n", m.plistPath(), m.logPath())
+	return nil
+}
+
+// writeNewsyslogConfig installs a newsyslog rotation config if the Homebrew
+// newsyslog.d directory is present. Silently skips if absent.
+func (m *LaunchdManager) writeNewsyslogConfig(home string) {
+	newsyslogDir := "/usr/local/etc/newsyslog.d"
+	if _, err := os.Stat(newsyslogDir); err != nil {
+		return
+	}
+	u, err := user.Current()
+	if err != nil {
+		return
+	}
+	g, err := user.LookupGroupId(u.Gid)
+	if err != nil {
+		return
+	}
+	config := fmt.Sprintf("# pitu log rotation (10 MB cap, 5 backups)\n"+
+		"%s\t%s:%s\t644\t5\t10240\t*\n"+
+		"%s\t%s:%s\t644\t5\t10240\t*\n",
+		m.logPath(), u.Username, g.Name,
+		m.errLogPath(), u.Username, g.Name,
+	)
+	dest := filepath.Join(newsyslogDir, "pitu.conf")
+	os.WriteFile(dest, []byte(config), 0644) // best-effort
+}
+
+func (m *LaunchdManager) Uninstall() error {
+	if !m.isInstalled() {
+		fmt.Println("pitu service is not installed — nothing to do.")
+		return nil
+	}
+	exec.Command("launchctl", "unload", m.plistPath()).Run() // best-effort
+	if err := os.Remove(m.plistPath()); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("service: remove plist: %w", err)
+	}
+	// Remove newsyslog config if present.
+	os.Remove("/usr/local/etc/newsyslog.d/pitu.conf")
+	fmt.Println("pitu service uninstalled.")
+	return nil
+}
+
+func (m *LaunchdManager) Start() error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	if out, err := exec.Command("launchctl", "start", "dev.pitu.pitu").CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl start: %w\n%s", err, out)
+	}
+	fmt.Println("pitu service started.")
+	return nil
+}
+
+func (m *LaunchdManager) Stop() error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	if out, err := exec.Command("launchctl", "stop", "dev.pitu.pitu").CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl stop: %w\n%s", err, out)
+	}
+	fmt.Println("pitu service stopped.")
+	return nil
+}
+
+func (m *LaunchdManager) Status() (string, error) {
+	if !m.isInstalled() {
+		return "not installed", nil
+	}
+	out, err := exec.Command("launchctl", "list", "dev.pitu.pitu").Output()
+	if err != nil {
+		return "inactive (not loaded)", nil
+	}
+	// Output has a header row then: PID \t ExitStatus \t Label
+	// A numeric PID (not "-") means the process is running.
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "dev.pitu.pitu") {
+			fields := strings.Fields(line)
+			if len(fields) > 0 && fields[0] != "-" {
+				return "active (PID " + fields[0] + ")", nil
+			}
+			return "loaded (not running)", nil
+		}
+	}
+	return "loaded", nil
+}
+
+func (m *LaunchdManager) Logs(n int) error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	cmd := exec.Command("tail", "-f", fmt.Sprintf("-n%d", n), m.logPath())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
