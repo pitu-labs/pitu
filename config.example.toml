@@ -12,3 +12,14 @@ extra_paths = []   # additional skill directories beyond the defaults
 
 [db]
 path = "~/.pitu/pitu.db"
+
+[model]
+# Provider to use. Supported values: anthropic, openai, ollama, or any OpenAI-compatible provider ID.
+provider = "anthropic"
+# Model name (without provider prefix). Examples: claude-sonnet-4-5, gpt-4o, llama3
+model    = "claude-sonnet-4-5"
+# API key. Leave empty for Ollama (no key required).
+api_key  = "YOUR_API_KEY_HERE"
+# Base URL. Required for Ollama (http://localhost:11434/v1) and custom OpenAI-compatible endpoints.
+# Leave empty for Anthropic and OpenAI.
+base_url = ""

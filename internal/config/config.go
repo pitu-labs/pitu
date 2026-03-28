@@ -11,6 +11,7 @@ type Config struct {
 	Container ContainerConfig `toml:"container"`
 	Skills    SkillsConfig    `toml:"skills"`
 	DB        DBConfig        `toml:"db"`
+	Model     ModelConfig     `toml:"model"`
 }
 
 type TelegramConfig struct {
@@ -30,6 +31,13 @@ type SkillsConfig struct {
 
 type DBConfig struct {
 	Path string `toml:"path"`
+}
+
+type ModelConfig struct {
+	Provider string `toml:"provider"` // e.g. "anthropic", "openai", "ollama"
+	Model    string `toml:"model"`    // model name without provider prefix, e.g. "claude-sonnet-4-5"
+	APIKey   string `toml:"api_key"`  // leave empty for Ollama
+	BaseURL  string `toml:"base_url"` // required for Ollama and OpenAI-compatible endpoints
 }
 
 func Load(path string) (*Config, error) {

@@ -64,6 +64,56 @@ func TestLoad_MissingFile(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestLoad_ModelConfig(t *testing.T) {
+	content := `
+[telegram]
+bot_token = "tok"
+
+[model]
+provider = "anthropic"
+model    = "claude-sonnet-4-5"
+api_key  = "sk-ant-test"
+`
+	f := writeTempTOML(t, content)
+	cfg, err := config.Load(f)
+	require.NoError(t, err)
+	assert.Equal(t, "anthropic", cfg.Model.Provider)
+	assert.Equal(t, "claude-sonnet-4-5", cfg.Model.Model)
+	assert.Equal(t, "sk-ant-test", cfg.Model.APIKey)
+	assert.Equal(t, "", cfg.Model.BaseURL)
+}
+
+func TestLoad_ModelConfig_OllamaWithBaseURL(t *testing.T) {
+	content := `
+[telegram]
+bot_token = "tok"
+
+[model]
+provider = "ollama"
+model    = "llama3"
+base_url = "http://localhost:11434/v1"
+`
+	f := writeTempTOML(t, content)
+	cfg, err := config.Load(f)
+	require.NoError(t, err)
+	assert.Equal(t, "ollama", cfg.Model.Provider)
+	assert.Equal(t, "llama3", cfg.Model.Model)
+	assert.Equal(t, "", cfg.Model.APIKey)
+	assert.Equal(t, "http://localhost:11434/v1", cfg.Model.BaseURL)
+}
+
+func TestLoad_ModelConfig_EmptyIsValid(t *testing.T) {
+	content := `
+[telegram]
+bot_token = "tok"
+`
+	f := writeTempTOML(t, content)
+	cfg, err := config.Load(f)
+	require.NoError(t, err)
+	assert.Equal(t, "", cfg.Model.Provider)
+	assert.Equal(t, "", cfg.Model.Model)
+}
+
 func writeTempTOML(t *testing.T, content string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "config.toml")
