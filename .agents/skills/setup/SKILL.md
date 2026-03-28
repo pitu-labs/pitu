@@ -85,6 +85,20 @@ The output must show a non-empty token value. If `bot_token` is still `"YOUR_BOT
 
 ---
 
+### Phase 4.5 — Model Configuration
+
+Invoke the `/update-model` skill now. It will guide you through selecting a provider, entering an API key (or Ollama base URL), and writing the `[model]` section to `~/.pitu/config.toml`.
+
+Return here once `/update-model` completes. Before continuing to Phase 5, confirm the config contains a non-empty `provider` and `model`:
+
+```bash
+grep -A4 '\[model\]' ~/.pitu/config.toml
+```
+
+The output must show non-empty `provider` and `model` values. If they are missing or set to placeholder values, re-run `/update-model` before proceeding.
+
+---
+
 ### Phase 5 — Container Image
 
 **Check:** Run `podman image exists pitu-agent:latest`. Exit code 0 means the image is present.
