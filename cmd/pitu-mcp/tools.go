@@ -53,10 +53,13 @@ func (h *toolHandlers) handleRegisterGroup(name, description string) (string, er
 	return `{"ok":true}`, h.writeIPC("groups", gf)
 }
 
-// handleSpawnAgent is a stub that returns an explicit error until real swarm support lands.
-// TODO: remove stub and implement when real swarm support lands.
 func (h *toolHandlers) handleSpawnAgent(role, prompt string) (string, error) {
-	return "", fmt.Errorf("multi-agent spawning is not yet supported in this Pitu instance")
+	id := uuid.NewString()
+	af := ipc.AgentFile{Action: "spawn", SubAgentID: id, Role: role, Prompt: prompt, ChatID: h.chatID}
+	if err := h.writeIPC("agents", af); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`{"subAgentId":%q}`, id), nil
 }
 
 func (h *toolHandlers) writeIPC(subdir string, v any) error {

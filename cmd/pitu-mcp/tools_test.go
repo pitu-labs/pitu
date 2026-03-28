@@ -60,10 +60,25 @@ func TestHandleListTasks_WritesFile(t *testing.T) {
 	assert.Equal(t, "list", tf.Action)
 }
 
-func TestHandleSpawnAgent_ReturnsNotSupportedError(t *testing.T) {
-	h := &toolHandlers{ipcDir: t.TempDir(), chatID: "chat-1"}
-	result, err := h.handleSpawnAgent("researcher", "find papers on Go concurrency")
-	assert.Empty(t, result)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not yet supported")
+func TestHandleSpawnAgent_WritesAgentFile(t *testing.T) {
+	tmp := t.TempDir()
+	for _, sub := range []string{"messages", "tasks", "groups", "agents"} {
+		os.MkdirAll(filepath.Join(tmp, sub), 0755)
+	}
+
+	h := &toolHandlers{ipcDir: tmp, chatID: "chat-1"}
+	result, err := h.handleSpawnAgent("Researcher", "find papers on Go concurrency")
+	require.NoError(t, err)
+	assert.Contains(t, result, `"subAgentId"`)
+
+	entries, _ := os.ReadDir(filepath.Join(tmp, "agents"))
+	require.Len(t, entries, 1)
+	data, _ := os.ReadFile(filepath.Join(tmp, "agents", entries[0].Name()))
+	var af ipc.AgentFile
+	require.NoError(t, json.Unmarshal(data, &af))
+	assert.Equal(t, "spawn", af.Action)
+	assert.Equal(t, "Researcher", af.Role)
+	assert.Equal(t, "find papers on Go concurrency", af.Prompt)
+	assert.Equal(t, "chat-1", af.ChatID)
+	assert.NotEmpty(t, af.SubAgentID)
 }
