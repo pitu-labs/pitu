@@ -68,6 +68,28 @@ func (h *toolHandlers) writeIPC(subdir string, v any) error {
 	if err != nil {
 		return fmt.Errorf("pitu-mcp: marshal: %w", err)
 	}
+	// Write to a temp file in the parent (non-watched) ipcDir, then rename
+	// atomically into the watched subdir. os.Rename fires a single IN_MOVED_TO
+	// event (mapped to fsnotify.Create) with the file already complete, avoiding
+	// the spurious second inotify event that os.WriteFile produces.
+	tmp, err := os.CreateTemp(h.ipcDir, ".tmp-")
+	if err != nil {
+		return fmt.Errorf("pitu-mcp: create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("pitu-mcp: write temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("pitu-mcp: close temp: %w", err)
+	}
 	name := fmt.Sprintf("%d.json", time.Now().UnixNano())
-	return os.WriteFile(filepath.Join(dir, name), data, 0644)
+	if err := os.Rename(tmpPath, filepath.Join(dir, name)); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("pitu-mcp: rename: %w", err)
+	}
+	return nil
 }

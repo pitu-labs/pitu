@@ -50,7 +50,7 @@ func (w *Watcher) Watch(ctx context.Context) {
 			if !ok {
 				return
 			}
-			if event.Op&(fsnotify.Create|fsnotify.Write) == 0 {
+			if event.Op&fsnotify.Create == 0 {
 				continue
 			}
 			subdir := filepath.Base(filepath.Dir(event.Name))
