@@ -99,6 +99,7 @@ func main() {
 		func(gf ipc.GroupFile) {
 			st.RegisterGroup(gf.ChatID, gf.Name, gf.Description)
 		},
+		func(ipc.AgentFile) {}, // TODO(Task 7): wire up sub-agent spawn
 	)
 
 	// IPC watcher — dynamically registers new container dirs as they start

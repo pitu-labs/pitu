@@ -20,6 +20,7 @@ func TestRouter_DispatchesMessageFile(t *testing.T) {
 		func(m ipc.OutboundMessage) { gotMsg = &m },
 		func(f ipc.TaskFile) {},
 		func(g ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
 	)
 
 	msg := ipc.OutboundMessage{ChatID: "123", Text: "reply", Type: "message"}
@@ -39,6 +40,7 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 		func(ipc.OutboundMessage) {},
 		func(f ipc.TaskFile) { gotTask = &f },
 		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
 	)
 
 	task := ipc.TaskFile{Action: "create", Name: "daily", Schedule: "0 9 * * *", Prompt: "p", ChatID: "123"}
@@ -53,9 +55,30 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 }
 
 func TestRouter_UnknownSubdir(t *testing.T) {
-	r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {})
+	r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {})
 	err := r.Route("unknown", "/tmp/file.json")
 	assert.Error(t, err)
+}
+
+func TestRouter_DispatchesAgentFile(t *testing.T) {
+	var gotAgent *ipc.AgentFile
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(a ipc.AgentFile) { gotAgent = &a },
+	)
+
+	af := ipc.AgentFile{Action: "spawn", SubAgentID: "uuid-1", Role: "Researcher", Prompt: "find papers", ChatID: "chat-1"}
+	data, _ := json.Marshal(af)
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "ts-3.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+
+	require.NoError(t, r.Route("agents", fpath))
+	require.NotNil(t, gotAgent)
+	assert.Equal(t, "Researcher", gotAgent.Role)
+	assert.Equal(t, "find papers", gotAgent.Prompt)
 }
 
 func TestWatcher_PicksUpNewFiles(t *testing.T) {
@@ -72,6 +95,7 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 		},
 		func(ipc.TaskFile) {},
 		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
