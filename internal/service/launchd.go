@@ -98,7 +98,7 @@ func (m *LaunchdManager) Install() error {
 		return fmt.Errorf("launchctl load: %w\n%s", err, out)
 	}
 
-	m.writeNewsyslogConfig(home)
+	m.writeNewsyslogConfig()
 
 	fmt.Printf("pitu service installed and started.\nPlist: %s\nLogs:  %s\n", m.plistPath(), m.logPath())
 	return nil
@@ -106,7 +106,7 @@ func (m *LaunchdManager) Install() error {
 
 // writeNewsyslogConfig installs a newsyslog rotation config if the Homebrew
 // newsyslog.d directory is present. Silently skips if absent.
-func (m *LaunchdManager) writeNewsyslogConfig(home string) {
+func (m *LaunchdManager) writeNewsyslogConfig() {
 	newsyslogDir := "/usr/local/etc/newsyslog.d"
 	if _, err := os.Stat(newsyslogDir); err != nil {
 		return
@@ -176,7 +176,7 @@ func (m *LaunchdManager) Status() (string, error) {
 	}
 	// Output has a header row then: PID \t ExitStatus \t Label
 	// A numeric PID (not "-") means the process is running.
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		if strings.Contains(line, "dev.pitu.pitu") {
 			fields := strings.Fields(line)
 			if len(fields) > 0 && fields[0] != "-" {
