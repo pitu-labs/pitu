@@ -66,11 +66,95 @@ WantedBy=default.target
 `, binary, home)
 }
 
-// Stub lifecycle methods — replaced with real implementations in Task 3.
+func (m *SystemdManager) Install() error {
+	binary, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("service: resolve binary path: %w", err)
+	}
+	home, _ := os.UserHomeDir()
 
-func (m *SystemdManager) Install() error          { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Uninstall() error        { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Start() error            { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Stop() error             { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Status() (string, error) { return "", fmt.Errorf("not implemented") }
-func (m *SystemdManager) Logs(n int) error        { return fmt.Errorf("not implemented") }
+	unitDir := filepath.Dir(m.unitPath())
+	if err := os.MkdirAll(unitDir, 0700); err != nil {
+		return fmt.Errorf("service: mkdir unit dir: %w", err)
+	}
+	if err := os.WriteFile(m.unitPath(), []byte(UnitContent(binary, home)), 0644); err != nil {
+		return fmt.Errorf("service: write unit file: %w", err)
+	}
+
+	for _, args := range [][]string{
+		{"--user", "daemon-reload"},
+		{"--user", "enable", "pitu"},
+		{"--user", "restart", "pitu"},
+	} {
+		if out, err := exec.Command("systemctl", args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("systemctl %s: %w\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	// Enable linger so the user service survives logout and starts on boot.
+	if out, err := exec.Command("loginctl", "enable-linger").CombinedOutput(); err != nil {
+		fmt.Printf("warning: loginctl enable-linger failed (service may stop on logout): %s\n", out)
+	}
+
+	fmt.Printf("pitu service installed and started.\nUnit: %s\n", m.unitPath())
+	return nil
+}
+
+func (m *SystemdManager) Uninstall() error {
+	if !m.isInstalled() {
+		fmt.Println("pitu service is not installed — nothing to do.")
+		return nil
+	}
+	for _, args := range [][]string{
+		{"--user", "stop", "pitu"},
+		{"--user", "disable", "pitu"},
+	} {
+		exec.Command("systemctl", args...).Run() // best-effort
+	}
+	if err := os.Remove(m.unitPath()); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("service: remove unit file: %w", err)
+	}
+	exec.Command("systemctl", "--user", "daemon-reload").Run() // best-effort
+	fmt.Println("pitu service uninstalled.")
+	return nil
+}
+
+func (m *SystemdManager) Start() error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	if out, err := exec.Command("systemctl", "--user", "start", "pitu").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl start: %w\n%s", err, out)
+	}
+	fmt.Println("pitu service started.")
+	return nil
+}
+
+func (m *SystemdManager) Stop() error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	if out, err := exec.Command("systemctl", "--user", "stop", "pitu").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl stop: %w\n%s", err, out)
+	}
+	fmt.Println("pitu service stopped.")
+	return nil
+}
+
+func (m *SystemdManager) Status() (string, error) {
+	if !m.isInstalled() {
+		return "not installed", nil
+	}
+	out, _ := exec.Command("systemctl", "--user", "is-active", "pitu").Output()
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (m *SystemdManager) Logs(n int) error {
+	if !m.isInstalled() {
+		return ErrNotInstalled
+	}
+	cmd := exec.Command("journalctl", "--user", "-u", "pitu", "-f", fmt.Sprintf("-n%d", n))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
