@@ -72,11 +72,15 @@ func (m *Manager) ensureContainer(ctx context.Context, chatID string) (*Handle, 
 func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, error) {
 	ipcDir := filepath.Join(m.dataDir, chatID, "ipc")
 	memDir := filepath.Join(m.dataDir, chatID, "memory")
+	opencodeDir := filepath.Join(m.dataDir, chatID, "opencode")
 	if err := os.MkdirAll(ipcDir, 0700); err != nil {
 		return nil, fmt.Errorf("mkdir ipc: %w", err)
 	}
+	if err := os.MkdirAll(opencodeDir, 0700); err != nil {
+		return nil, fmt.Errorf("mkdir opencode: %w", err)
+	}
 
-	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir)
+	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir, opencodeDir)
 	out, err := exec.CommandContext(ctx, "podman", args...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("podman run: %w (output: %s)", err, out)
@@ -130,7 +134,7 @@ func (m *Manager) StopAll() {
 }
 
 // BuildRunArgs returns the podman run arguments for a new container. Public for testability.
-func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir string) []string {
+func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir, opencodeDir string) []string {
 	opencodeCfg := GenerateOpenCodeConfig(chatID)
 	return []string{
 		"run", "--detach", "--rm",
@@ -140,6 +144,7 @@ func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir string) []strin
 		"--volume", ipcDir + ":/workspace/ipc:z",
 		"--volume", memDir + ":/workspace/memory:z",
 		"--volume", skillsDir + ":/workspace/skills:ro,z",
+		"--volume", opencodeDir + ":/root/.local/share/opencode:z",
 		m.cfg.Container.Image,
 		"sleep", "infinity", // container stays alive; OpenCode invoked per-message via exec
 	}

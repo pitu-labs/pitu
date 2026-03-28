@@ -56,7 +56,7 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 	cfg.Container.TTL = "5m"
 
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills")
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
 
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "pitu-agent:test")
@@ -82,6 +82,19 @@ func TestBuildExecArgs_CFlagPresent_WhenHasSession(t *testing.T) {
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, " -c ")
 	assert.Contains(t, joined, "-f /workspace/ipc/input/msg.json")
+}
+
+func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Container.Image = "pitu-agent:test"
+	cfg.Container.MemoryLimit = "256m"
+	cfg.Container.TTL = "5m"
+
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
+
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "/host/opencode:/root/.local/share/opencode")
 }
 
 func TestWriteInputFile_FileNameIncludesTimestamp(t *testing.T) {
