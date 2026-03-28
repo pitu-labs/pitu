@@ -164,6 +164,35 @@ func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession b
 	return args
 }
 
+// BuildSpawnArgs returns the podman exec arguments for running a sub-agent. Public for testability.
+func (m *Manager) BuildSpawnArgs(containerID, role, prompt string) []string {
+	return []string{
+		"exec", containerID,
+		"opencode", "run",
+		"--title", role,
+		"--", role + ": " + prompt,
+	}
+}
+
+// SpawnSubAgent runs a one-shot OpenCode sub-agent inside the container for chatID.
+// It runs in a goroutine so the caller is not blocked. The sub-agent inherits ctx,
+// so it is cancelled if the application shuts down.
+func (m *Manager) SpawnSubAgent(ctx context.Context, chatID, role, prompt string) {
+	v, ok := m.pool.Load(chatID)
+	if !ok {
+		log.Printf("container: SpawnSubAgent: no container for chat %s", chatID)
+		return
+	}
+	handle := v.(*Handle)
+	args := m.BuildSpawnArgs(handle.ID, role, prompt)
+	go func() {
+		out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
+		if err != nil {
+			log.Printf("container: sub-agent %s (chat %s): %v (output: %s)", role, chatID, err, out)
+		}
+	}()
+}
+
 func (m *Manager) ttl() time.Duration {
 	d, err := time.ParseDuration(m.cfg.Container.TTL)
 	if err != nil {

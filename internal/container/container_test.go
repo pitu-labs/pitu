@@ -97,6 +97,17 @@ func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
 	assert.Contains(t, joined, "/host/opencode:/root/.local/share/opencode")
 }
 
+func TestManager_BuildSpawnArgs(t *testing.T) {
+	cfg := &config.Config{}
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildSpawnArgs("ctr-xyz", "Researcher", "find papers on Go concurrency")
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "exec ctr-xyz opencode run")
+	assert.Contains(t, joined, "--title Researcher")
+	assert.Contains(t, joined, "Researcher: find papers on Go concurrency")
+	assert.NotContains(t, joined, " -c ")
+}
+
 func TestWriteInputFile_FileNameIncludesTimestamp(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "input"), 0755))
