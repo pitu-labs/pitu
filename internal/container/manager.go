@@ -89,6 +89,8 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		return nil, fmt.Errorf("container: create env file: %w", err)
 	}
 	envFilePath := ef.Name()
+	// podman run --detach reads --env-file synchronously before the client returns,
+	// so the file is safe to remove once startContainer returns.
 	defer os.Remove(envFilePath)
 	if err := ef.Chmod(0600); err != nil {
 		ef.Close()
