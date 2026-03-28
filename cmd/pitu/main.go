@@ -63,9 +63,11 @@ func main() {
 	// Merge all discovered skills into a single directory for container mounting
 	skillsMount := mergeSkills(dataDir, discovered)
 
-	// Declare q and mgr before any closures that reference them (Go requires declaration before use in closures).
+	// Declare q, mgr, ctx, and cancel before any closures that reference them (Go requires declaration before use in closures).
 	var q *queue.Queue
 	var mgr *container.Manager
+	var ctx context.Context
+	var cancel context.CancelFunc
 
 	// Telegram
 	sender := telegram.NewSender(cfg.Telegram.BotToken, "https://api.telegram.org")
@@ -99,7 +101,9 @@ func main() {
 		func(gf ipc.GroupFile) {
 			st.RegisterGroup(gf.ChatID, gf.Name, gf.Description)
 		},
-		func(ipc.AgentFile) {}, // TODO(Task 7): wire up sub-agent spawn
+		func(af ipc.AgentFile) {
+			mgr.SpawnSubAgent(ctx, af.ChatID, af.Role, af.Prompt)
+		},
 	)
 
 	// IPC watcher — dynamically registers new container dirs as they start
@@ -121,7 +125,7 @@ func main() {
 		sched.Add(t)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
 	// Graceful shutdown on SIGINT/SIGTERM
