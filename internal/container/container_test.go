@@ -17,7 +17,7 @@ import (
 )
 
 func TestGenerateOpenCodeConfig_ContainsChatID(t *testing.T) {
-	cfg := container.GenerateOpenCodeConfig("chat-123")
+	cfg := container.GenerateOpenCodeConfig("chat-123", config.ModelConfig{})
 	assert.Contains(t, cfg, "chat-123")
 	assert.Contains(t, cfg, "pitu-mcp")
 	// Must be valid JSON
@@ -127,4 +127,63 @@ func TestWriteInputFile_FileNameIncludesTimestamp(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, ts, before)
 	assert.LessOrEqual(t, ts, after)
+}
+
+func TestGenerateOpenCodeConfig_InjectsAnthropicProvider(t *testing.T) {
+	m := config.ModelConfig{
+		Provider: "anthropic",
+		Model:    "claude-sonnet-4-5",
+		APIKey:   "sk-ant-test",
+	}
+	cfg := container.GenerateOpenCodeConfig("chat-1", m)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(cfg), &parsed))
+
+	assert.Equal(t, "anthropic/claude-sonnet-4-5", parsed["model"])
+
+	providers, ok := parsed["provider"].(map[string]any)
+	require.True(t, ok, "provider key must be an object")
+	anthropic, ok := providers["anthropic"].(map[string]any)
+	require.True(t, ok, "provider.anthropic must be an object")
+	opts, ok := anthropic["options"].(map[string]any)
+	require.True(t, ok, "provider.anthropic.options must be an object")
+	assert.Equal(t, "sk-ant-test", opts["apiKey"])
+	// No npm field for anthropic (native provider)
+	_, hasNPM := anthropic["npm"]
+	assert.False(t, hasNPM)
+}
+
+func TestGenerateOpenCodeConfig_InjectsOllamaProvider(t *testing.T) {
+	m := config.ModelConfig{
+		Provider: "ollama",
+		Model:    "llama3",
+		BaseURL:  "http://localhost:11434/v1",
+	}
+	cfg := container.GenerateOpenCodeConfig("chat-2", m)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(cfg), &parsed))
+
+	assert.Equal(t, "ollama/llama3", parsed["model"])
+
+	providers := parsed["provider"].(map[string]any)
+	ollama := providers["ollama"].(map[string]any)
+	assert.Equal(t, "@ai-sdk/openai-compatible", ollama["npm"])
+	opts := ollama["options"].(map[string]any)
+	assert.Equal(t, "http://localhost:11434/v1", opts["baseURL"])
+	_, hasAPIKey := opts["apiKey"]
+	assert.False(t, hasAPIKey)
+}
+
+func TestGenerateOpenCodeConfig_EmptyModelOmitsProviderAndModel(t *testing.T) {
+	cfg := container.GenerateOpenCodeConfig("chat-3", config.ModelConfig{})
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(cfg), &parsed))
+
+	_, hasModel := parsed["model"]
+	assert.False(t, hasModel, "model key must be absent when ModelConfig is empty")
+	_, hasProvider := parsed["provider"]
+	assert.False(t, hasProvider, "provider key must be absent when ModelConfig is empty")
 }

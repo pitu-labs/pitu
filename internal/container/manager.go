@@ -138,7 +138,7 @@ func (m *Manager) StopAll() {
 
 // BuildRunArgs returns the podman run arguments for a new container. Public for testability.
 func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir, opencodeDir string) []string {
-	opencodeCfg := GenerateOpenCodeConfig(chatID)
+	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
 	return []string{
 		"run", "--detach", "--rm",
 		"--memory", m.cfg.Container.MemoryLimit,
