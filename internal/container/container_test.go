@@ -56,13 +56,15 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 	cfg.Container.TTL = "5m"
 
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "pitu-agent:test")
 	assert.Contains(t, joined, "/host/ipc")
 	assert.Contains(t, joined, "PITU_CHAT_ID=chat-99")
 	assert.Contains(t, joined, "256m")
+	assert.Contains(t, joined, "--env-file")
+	assert.NotContains(t, joined, "OPENCODE_CONFIG_CONTENT")
 }
 
 func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
@@ -91,7 +93,7 @@ func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
 	cfg.Container.TTL = "5m"
 
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "/host/opencode:/root/.local/share/opencode")
@@ -198,9 +200,26 @@ func TestManager_BuildRunArgs_InjectsModelWhenConfigured(t *testing.T) {
 	cfg.Model.APIKey = "sk-ant-test"
 
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode")
+	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "anthropic")
-	assert.Contains(t, joined, "claude-sonnet-4-5")
+	assert.Contains(t, joined, "--env-file")
+}
+
+func TestManager_BuildRunArgs_UsesEnvFile(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Container.Image = "pitu-agent:test"
+	cfg.Container.MemoryLimit = "256m"
+	cfg.Container.TTL = "5m"
+	cfg.Model.Provider = "anthropic"
+	cfg.Model.APIKey = "sk-ant-secret"
+
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildRunArgs("chat-1", "/ipc", "/mem", "/skills", "/opencode", "/tmp/env-file")
+	joined := strings.Join(args, " ")
+
+	assert.Contains(t, joined, "--env-file")
+	assert.Contains(t, joined, "/tmp/env-file")
+	assert.NotContains(t, joined, "sk-ant-secret")
+	assert.NotContains(t, joined, "OPENCODE_CONFIG_CONTENT")
 }

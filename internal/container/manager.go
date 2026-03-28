@@ -83,7 +83,26 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		return nil, fmt.Errorf("mkdir opencode: %w", err)
 	}
 
-	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir, opencodeDir)
+	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
+	ef, err := os.CreateTemp("", "pitu-opencode-env-*")
+	if err != nil {
+		return nil, fmt.Errorf("container: create env file: %w", err)
+	}
+	envFilePath := ef.Name()
+	defer os.Remove(envFilePath)
+	if err := ef.Chmod(0600); err != nil {
+		ef.Close()
+		return nil, fmt.Errorf("container: chmod env file: %w", err)
+	}
+	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
+		ef.Close()
+		return nil, fmt.Errorf("container: write env file: %w", err)
+	}
+	if err := ef.Close(); err != nil {
+		return nil, fmt.Errorf("container: close env file: %w", err)
+	}
+
+	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir, opencodeDir, envFilePath)
 	out, err := exec.CommandContext(ctx, "podman", args...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("podman run: %w (output: %s)", err, out)
@@ -137,13 +156,12 @@ func (m *Manager) StopAll() {
 }
 
 // BuildRunArgs returns the podman run arguments for a new container. Public for testability.
-func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir, opencodeDir string) []string {
-	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
+func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir, opencodeDir, envFile string) []string {
 	return []string{
 		"run", "--detach", "--rm",
 		"--memory", m.cfg.Container.MemoryLimit,
 		"--env", "PITU_CHAT_ID=" + chatID,
-		"--env", "OPENCODE_CONFIG_CONTENT=" + opencodeCfg,
+		"--env-file", envFile,
 		"--volume", ipcDir + ":/workspace/ipc:z",
 		"--volume", memDir + ":/workspace/memory:z",
 		"--volume", skillsDir + ":/workspace/skills:ro,z",
