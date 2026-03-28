@@ -1,5 +1,3 @@
-//go:build linux
-
 package service
 
 import (
@@ -11,7 +9,6 @@ import (
 )
 
 // SystemdManager implements Manager for Linux systemd user sessions.
-// Exported only to satisfy the compile-time interface check in service_test.go.
 type SystemdManager struct{}
 
 func newSystemdManager() (*SystemdManager, error) {
@@ -47,16 +44,6 @@ func (m *SystemdManager) isInstalled() bool {
 	return err == nil
 }
 
-// Install, Uninstall, Start, Stop, Status, and Logs are stubbed here.
-// Full implementations are added in Task 3.
-
-func (m *SystemdManager) Install() error                { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Uninstall() error              { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Start() error                  { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Stop() error                   { return fmt.Errorf("not implemented") }
-func (m *SystemdManager) Status() (string, error)       { return "", fmt.Errorf("not implemented") }
-func (m *SystemdManager) Logs(_ int) error              { return fmt.Errorf("not implemented") }
-
 // UnitContent returns the systemd unit file content for the given binary and home dir.
 // Exported for testing; callers should use Install() for end-to-end behaviour.
 func UnitContent(binary, home string) string {
@@ -78,3 +65,12 @@ StandardError=journal
 WantedBy=default.target
 `, binary, home)
 }
+
+// Stub lifecycle methods — replaced with real implementations in Task 3.
+
+func (m *SystemdManager) Install() error          { return fmt.Errorf("not implemented") }
+func (m *SystemdManager) Uninstall() error        { return fmt.Errorf("not implemented") }
+func (m *SystemdManager) Start() error            { return fmt.Errorf("not implemented") }
+func (m *SystemdManager) Stop() error             { return fmt.Errorf("not implemented") }
+func (m *SystemdManager) Status() (string, error) { return "", fmt.Errorf("not implemented") }
+func (m *SystemdManager) Logs(n int) error        { return fmt.Errorf("not implemented") }
