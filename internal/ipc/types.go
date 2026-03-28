@@ -35,7 +35,7 @@ type GroupFile struct {
 // AgentFile is written by pitu-mcp to ipc/agents/ to request a sub-agent spawn.
 type AgentFile struct {
 	Action     string `json:"action"`               // "spawn"
-	SubAgentID string `json:"sub_agent_id"`
+	SubAgentID string `json:"sub_agent_id"` // reserved for future result correlation; not used by harness today
 	Role       string `json:"role"`
 	Prompt     string `json:"prompt"`
 	ChatID     string `json:"chat_id"`

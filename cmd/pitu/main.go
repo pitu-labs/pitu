@@ -102,6 +102,11 @@ func main() {
 			st.RegisterGroup(gf.ChatID, gf.Name, gf.Description)
 		},
 		func(af ipc.AgentFile) {
+			if af.Action != "spawn" {
+				log.Printf("pitu: onAgent: unknown action %q, ignoring", af.Action)
+				return
+			}
+			// ctx is assigned before w.Watch starts (line ~143), so it is never nil here.
 			mgr.SpawnSubAgent(ctx, af.ChatID, af.Role, af.Prompt)
 		},
 	)

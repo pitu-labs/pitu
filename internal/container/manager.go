@@ -177,6 +177,9 @@ func (m *Manager) BuildSpawnArgs(containerID, role, prompt string) []string {
 // SpawnSubAgent runs a one-shot OpenCode sub-agent inside the container for chatID.
 // It runs in a goroutine so the caller is not blocked. The sub-agent inherits ctx,
 // so it is cancelled if the application shuts down.
+// Note: if the container TTL fires between pool.Load and podman exec, the exec will
+// fail against a stopped container; the error is logged and the sub-agent is silently
+// dropped. Acceptable for v1 fire-and-forget semantics.
 func (m *Manager) SpawnSubAgent(ctx context.Context, chatID, role, prompt string) {
 	v, ok := m.pool.Load(chatID)
 	if !ok {
