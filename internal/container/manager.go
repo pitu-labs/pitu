@@ -76,6 +76,9 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 	if err := os.MkdirAll(ipcDir, 0700); err != nil {
 		return nil, fmt.Errorf("mkdir ipc: %w", err)
 	}
+	if err := os.MkdirAll(memDir, 0700); err != nil {
+		return nil, fmt.Errorf("mkdir memory: %w", err)
+	}
 	if err := os.MkdirAll(opencodeDir, 0700); err != nil {
 		return nil, fmt.Errorf("mkdir opencode: %w", err)
 	}
