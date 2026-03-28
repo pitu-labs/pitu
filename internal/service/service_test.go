@@ -33,3 +33,21 @@ func TestUnitContent(t *testing.T) {
 		}
 	}
 }
+
+func TestPlistContent(t *testing.T) {
+	got := service.PlistContent("/home/alice/pitu/pitu", "/home/alice")
+	cases := []string{
+		"dev.pitu.pitu",
+		"<string>/home/alice/pitu/pitu</string>",
+		"<key>RunAtLoad</key>",
+		"<key>KeepAlive</key>",
+		"/home/alice/.pitu/logs/pitu.log",
+		"/home/alice/.pitu/logs/pitu.error.log",
+		"<key>HOME</key>",
+	}
+	for _, want := range cases {
+		if !strings.Contains(got, want) {
+			t.Errorf("PlistContent() missing %q\ngot:\n%s", want, got)
+		}
+	}
+}
