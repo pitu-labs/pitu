@@ -71,6 +71,9 @@ func (m *SystemdManager) Install() error {
 	if err != nil {
 		return fmt.Errorf("service: resolve binary path: %w", err)
 	}
+	if binary, err = filepath.EvalSymlinks(binary); err != nil {
+		return fmt.Errorf("service: resolve binary symlink: %w", err)
+	}
 	home, _ := os.UserHomeDir()
 
 	unitDir := filepath.Dir(m.unitPath())

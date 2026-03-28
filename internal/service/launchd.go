@@ -73,10 +73,17 @@ func PlistContent(binary, home string) string {
 `, binary, home, home, logPath, errLogPath)
 }
 
+func (m *LaunchdManager) serviceTarget() string {
+	return fmt.Sprintf("gui/%d", os.Getuid())
+}
+
 func (m *LaunchdManager) Install() error {
 	binary, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("service: resolve binary path: %w", err)
+	}
+	if binary, err = filepath.EvalSymlinks(binary); err != nil {
+		return fmt.Errorf("service: resolve binary symlink: %w", err)
 	}
 	home, _ := os.UserHomeDir()
 
@@ -88,14 +95,14 @@ func (m *LaunchdManager) Install() error {
 		return fmt.Errorf("service: mkdir LaunchAgents: %w", err)
 	}
 
-	// Unload any existing registration before overwriting the plist.
-	exec.Command("launchctl", "unload", m.plistPath()).Run() // best-effort
+	// Remove any existing registration before overwriting the plist.
+	exec.Command("launchctl", "bootout", m.serviceTarget(), m.plistPath()).Run() // best-effort
 
 	if err := os.WriteFile(m.plistPath(), []byte(PlistContent(binary, home)), 0644); err != nil {
 		return fmt.Errorf("service: write plist: %w", err)
 	}
-	if out, err := exec.Command("launchctl", "load", m.plistPath()).CombinedOutput(); err != nil {
-		return fmt.Errorf("launchctl load: %w\n%s", err, out)
+	if out, err := exec.Command("launchctl", "bootstrap", m.serviceTarget(), m.plistPath()).CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl bootstrap: %w\n%s", err, out)
 	}
 
 	m.writeNewsyslogConfig()
@@ -134,7 +141,7 @@ func (m *LaunchdManager) Uninstall() error {
 		fmt.Println("pitu service is not installed — nothing to do.")
 		return nil
 	}
-	exec.Command("launchctl", "unload", m.plistPath()).Run() // best-effort
+	exec.Command("launchctl", "bootout", m.serviceTarget(), m.plistPath()).Run() // best-effort
 	if err := os.Remove(m.plistPath()); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("service: remove plist: %w", err)
 	}
@@ -148,8 +155,9 @@ func (m *LaunchdManager) Start() error {
 	if !m.isInstalled() {
 		return ErrNotInstalled
 	}
-	if out, err := exec.Command("launchctl", "start", "dev.pitu.pitu").CombinedOutput(); err != nil {
-		return fmt.Errorf("launchctl start: %w\n%s", err, out)
+	// Use bootstrap (modern API) to re-register and start the service.
+	if out, err := exec.Command("launchctl", "bootstrap", m.serviceTarget(), m.plistPath()).CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl bootstrap: %w\n%s", err, out)
 	}
 	fmt.Println("pitu service started.")
 	return nil
@@ -159,8 +167,11 @@ func (m *LaunchdManager) Stop() error {
 	if !m.isInstalled() {
 		return ErrNotInstalled
 	}
-	if out, err := exec.Command("launchctl", "stop", "dev.pitu.pitu").CombinedOutput(); err != nil {
-		return fmt.Errorf("launchctl stop: %w\n%s", err, out)
+	// Use bootout (modern API) to unload and stop the service.
+	// With KeepAlive=true, launchctl stop immediately restarts the process;
+	// bootout removes it from launchd entirely, honouring the stop request.
+	if out, err := exec.Command("launchctl", "bootout", m.serviceTarget(), m.plistPath()).CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl bootout: %w\n%s", err, out)
 	}
 	fmt.Println("pitu service stopped.")
 	return nil
