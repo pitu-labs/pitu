@@ -76,10 +76,8 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 		return mcp.NewToolResultText(result), nil
 	})
 
-	// TODO: remove stub and implement when real swarm support lands.
-	// The tool signature (role, prompt) is intentionally stable — it becomes the production API.
 	s.AddTool(mcp.NewTool("spawnAgent",
-		mcp.WithDescription("Spawn a sub-agent for a delegated task (not yet supported)"),
+		mcp.WithDescription("Spawn a sub-agent for a delegated task"),
 		mcp.WithString("role", mcp.Required(), mcp.Description("Sub-agent role or name")),
 		mcp.WithString("prompt", mcp.Required(), mcp.Description("Task to delegate to the sub-agent")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -89,7 +87,6 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		// Success branch: unreachable while stub is in place; activate when real implementation lands.
 		return mcp.NewToolResultText(result), nil
 	})
 
