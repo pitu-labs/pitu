@@ -61,6 +61,9 @@ func main() {
 	discovered := skills.Discover(skillsPaths)
 	log.Printf("pitu: discovered %d skills", len(discovered))
 
+	agentDir := filepath.Join(home, ".pitu", "agent")
+	agentCfg := skills.LoadAgentConfig(agentDir)
+
 	dataDir := filepath.Join(home, ".pitu", "data")
 	os.MkdirAll(dataDir, 0700)
 
@@ -174,7 +177,7 @@ func main() {
 		// Write CONTEXT.md on first boot
 		memDir := filepath.Join(dataDir, chatID, "memory")
 		os.MkdirAll(memDir, 0700)
-		skills.WriteContext(memDir, chatID, discovered)
+		skills.WriteContext(memDir, chatID, discovered, agentCfg)
 
 		q.Enqueue(chatID, func() {
 			if err := mgr.Dispatch(ctx, chatID, msg); err != nil {
