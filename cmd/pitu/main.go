@@ -90,6 +90,19 @@ func main() {
 
 	router := ipc.NewRouter(
 		func(m ipc.OutboundMessage) {
+			if m.SubAgentID != "" {
+				// Bubble up!
+				bubbleMsg := ipc.InboundMessage{
+					ChatID: m.ChatID,
+					From:   fmt.Sprintf("Agent: %s", m.Role),
+					Text:   fmt.Sprintf("[Agent: %s (%s)] %s", m.Role, m.SubAgentID, m.Text),
+				}
+				q.Enqueue(m.ChatID, func() {
+					mgr.Dispatch(context.Background(), m.ChatID, bubbleMsg)
+				})
+				return
+			}
+			// Standard Telegram delivery
 			if err := sender.SendMessage(m.ChatID, m.Text); err != nil {
 				log.Printf("pitu: send message: %v", err)
 			}

@@ -77,7 +77,8 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
 	require.NoError(t, r.Route("tasks", fpath, "", ""))
-	require.NotNil(t, gotTask)	assert.Equal(t, "daily", gotTask.Name)
+	require.NotNil(t, gotTask)
+	assert.Equal(t, "daily", gotTask.Name)
 }
 
 func TestRouter_UnknownSubdir(t *testing.T) {
@@ -101,7 +102,8 @@ func TestRouter_DispatchesAgentFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
 	require.NoError(t, r.Route("agents", fpath, "", ""))
-	require.NotNil(t, gotAgent)	assert.Equal(t, "Researcher", gotAgent.Role)
+	require.NotNil(t, gotAgent)
+	assert.Equal(t, "Researcher", gotAgent.Role)
 	assert.Equal(t, "find papers", gotAgent.Prompt)
 }
 
