@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pitu-dev/pitu/internal/config"
 	"github.com/pitu-dev/pitu/internal/ipc"
 	"github.com/pitu-dev/pitu/internal/skills"
@@ -23,11 +24,21 @@ type Handle struct {
 	ttlTimer     *time.Timer
 }
 
+type SubAgentHandle struct {
+	ID         string
+	ChatID     string
+	Role       string
+	SubAgentID string
+	IPCDir     string
+	ttlTimer   *time.Timer
+}
+
 type Manager struct {
 	cfg        *config.Config
 	pool       sync.Map // chatID → *Handle
+	subPool    sync.Map // subAgentID -> *SubAgentHandle
 	skillsDisc []skills.Skill
-	watcher    interface{ RegisterDir(string) error } // ipc.Watcher, accepts nil
+	watcher    interface{ RegisterDir(string, string, string) error } // ipc.Watcher, accepts nil
 	onExpire   func(chatID string)
 
 	// Dirs used by all containers
@@ -35,7 +46,7 @@ type Manager struct {
 	dataDir   string // host base path; per-chat subdirs created here
 }
 
-func NewManager(cfg *config.Config, discovered []skills.Skill, w interface{ RegisterDir(string) error }, onExpire func(string)) *Manager {
+func NewManager(cfg *config.Config, discovered []skills.Skill, w interface{ RegisterDir(string, string, string) error }, onExpire func(string)) *Manager {
 	return &Manager{cfg: cfg, skillsDisc: discovered, watcher: w, onExpire: onExpire}
 }
 
@@ -114,7 +125,7 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 
 	// Register the new container's IPC dirs with the watcher
 	if m.watcher != nil {
-		if err := m.watcher.RegisterDir(ipcDir); err != nil {
+		if err := m.watcher.RegisterDir(ipcDir, "", ""); err != nil {
 			log.Printf("container: register ipc dirs for %s: %v", chatID, err)
 		}
 	}
@@ -124,6 +135,74 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		m.stopContainer(chatID, containerID)
 	})
 	m.pool.Store(chatID, handle)
+	return handle, nil
+}
+
+func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subAgentID string) (*SubAgentHandle, error) {
+	agentRoot := filepath.Join(m.dataDir, chatID, "agents", subAgentID)
+	ipcDir := filepath.Join(agentRoot, "ipc")
+	memDir := filepath.Join(agentRoot, "memory")
+	skillsDir := filepath.Join(agentRoot, "skills")
+	opencodeDir := filepath.Join(agentRoot, "opencode")
+
+	dirs := []string{ipcDir, memDir, skillsDir, opencodeDir, filepath.Join(skillsDir, "system")}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0700); err != nil {
+			return nil, fmt.Errorf("mkdir %s: %w", d, err)
+		}
+	}
+
+	// Write system.md skill
+	systemSkillPath := filepath.Join(skillsDir, "system", "SKILL.md")
+	systemSkillContent := fmt.Sprintf("# System\n\nYou are a sub-agent with the role: %s. Your ChatID is %s and your SubAgentID is %s.\n", role, chatID, subAgentID)
+	if err := os.WriteFile(systemSkillPath, []byte(systemSkillContent), 0600); err != nil {
+		return nil, fmt.Errorf("write system skill: %w", err)
+	}
+
+	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
+	ef, err := os.CreateTemp("", "pitu-subagent-env-*")
+	if err != nil {
+		return nil, fmt.Errorf("container: create env file: %w", err)
+	}
+	envFilePath := ef.Name()
+	defer os.Remove(envFilePath)
+	if err := ef.Chmod(0600); err != nil {
+		ef.Close()
+		return nil, fmt.Errorf("container: chmod env file: %w", err)
+	}
+	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
+		ef.Close()
+		return nil, fmt.Errorf("container: write env file: %w", err)
+	}
+	if err := ef.Close(); err != nil {
+		return nil, fmt.Errorf("container: close env file: %w", err)
+	}
+
+	args := m.BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir, skillsDir, opencodeDir, envFilePath)
+	out, err := exec.CommandContext(ctx, "podman", args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("podman run subagent: %w (output: %s)", err, out)
+	}
+	containerID := string(out)
+	containerID = containerID[:len(containerID)-1] // trim newline
+
+	if m.watcher != nil {
+		if err := m.watcher.RegisterDir(ipcDir, role, subAgentID); err != nil {
+			log.Printf("container: register ipc dirs for subagent %s: %v", subAgentID, err)
+		}
+	}
+
+	handle := &SubAgentHandle{
+		ID:         containerID,
+		ChatID:     chatID,
+		Role:       role,
+		SubAgentID: subAgentID,
+		IPCDir:     ipcDir,
+	}
+	handle.ttlTimer = time.AfterFunc(m.ttl(), func() {
+		m.stopSubAgentContainer(subAgentID, containerID)
+	})
+	m.subPool.Store(subAgentID, handle)
 	return handle, nil
 }
 
@@ -146,6 +225,12 @@ func (m *Manager) stopContainer(chatID, containerID string) {
 	log.Printf("container: stopped %s (chat %s TTL expired)", containerID, chatID)
 }
 
+func (m *Manager) stopSubAgentContainer(subAgentID, containerID string) {
+	exec.Command("podman", "stop", containerID).Run()
+	m.subPool.Delete(subAgentID)
+	log.Printf("container: stopped %s (sub-agent %s TTL expired)", containerID, subAgentID)
+}
+
 // StopAll stops all warm containers. Call on harness shutdown.
 func (m *Manager) StopAll() {
 	m.pool.Range(func(k, v any) bool {
@@ -153,6 +238,13 @@ func (m *Manager) StopAll() {
 		h.ttlTimer.Stop()
 		exec.Command("podman", "stop", h.ID).Run()
 		m.pool.Delete(k)
+		return true
+	})
+	m.subPool.Range(func(k, v any) bool {
+		h := v.(*SubAgentHandle)
+		h.ttlTimer.Stop()
+		exec.Command("podman", "stop", h.ID).Run()
+		m.subPool.Delete(k)
 		return true
 	})
 }
@@ -170,6 +262,24 @@ func (m *Manager) BuildRunArgs(chatID, ipcDir, memDir, skillsDir, opencodeDir, e
 		"--volume", opencodeDir + ":/root/.local/share/opencode:z",
 		m.cfg.Container.Image,
 		"sleep", "infinity", // container stays alive; OpenCode invoked per-message via exec
+	}
+}
+
+// BuildSubAgentRunArgs returns the podman run arguments for a new sub-agent container. Public for testability.
+func (m *Manager) BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir, skillsDir, opencodeDir, envFile string) []string {
+	return []string{
+		"run", "--detach", "--rm",
+		"--memory", m.cfg.Container.MemoryLimit,
+		"--env", "PITU_CHAT_ID=" + chatID,
+		"--env", "PITU_SUB_AGENT_ID=" + subAgentID,
+		"--env", "PITU_ROLE=" + role,
+		"--env-file", envFile,
+		"--volume", ipcDir + ":/workspace/ipc:z",
+		"--volume", memDir + ":/workspace/memory:z",
+		"--volume", skillsDir + ":/workspace/skills:ro,z",
+		"--volume", opencodeDir + ":/root/.local/share/opencode:z",
+		m.cfg.Container.Image,
+		"sleep", "infinity",
 	}
 }
 
@@ -194,28 +304,23 @@ func (m *Manager) BuildSpawnArgs(containerID, role, prompt string) []string {
 	}
 }
 
-// SpawnSubAgent runs a one-shot OpenCode sub-agent inside the container for chatID.
-// It runs in a goroutine so the caller is not blocked. The sub-agent inherits ctx,
-// so it is cancelled if the application shuts down.
-// Note: if the container TTL fires between pool.Load and podman exec, the exec will
-// fail against a stopped container; the error is logged and the sub-agent is silently
-// dropped. Acceptable for v1 fire-and-forget semantics.
+// SpawnSubAgent runs a one-shot OpenCode sub-agent inside a fresh isolated container.
 func (m *Manager) SpawnSubAgent(ctx context.Context, chatID, role, prompt string) {
-	v, ok := m.pool.Load(chatID)
-	if !ok {
-		log.Printf("container: SpawnSubAgent: no container for chat %s", chatID)
-		return
-	}
-	handle := v.(*Handle)
-	args := m.BuildSpawnArgs(handle.ID, role, prompt)
+	subAgentID := uuid.NewString()
 	go func() {
+		handle, err := m.startSubAgentContainer(ctx, chatID, role, subAgentID)
+		if err != nil {
+			log.Printf("container: SpawnSubAgent: start: %v", err)
+			return
+		}
+
+		args := m.BuildSpawnArgs(handle.ID, role, prompt)
 		out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
 		if err != nil {
 			log.Printf("container: sub-agent %s (chat %s): %v (output: %s)", role, chatID, err, out)
 		}
 	}()
 }
-
 func (m *Manager) ttl() time.Duration {
 	d, err := time.ParseDuration(m.cfg.Container.TTL)
 	if err != nil {

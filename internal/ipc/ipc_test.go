@@ -29,7 +29,7 @@ func TestRouter_DispatchesMessageFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-1.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("messages", fpath))
+	require.NoError(t, r.Route("messages", fpath, "", ""))
 	require.NotNil(t, gotMsg)
 	assert.Equal(t, "reply", gotMsg.Text)
 }
@@ -47,15 +47,15 @@ func TestRouter_DispatchesMessageFile_WithRoleAndSubAgentID(t *testing.T) {
 		ChatID:     "123",
 		Text:       "reply",
 		Type:       "message",
-		Role:       "researcher",
-		SubAgentID: "agent-1",
+		Role:       "old-role",
+		SubAgentID: "old-id",
 	}
 	data, _ := json.Marshal(msg)
 	tmp := t.TempDir()
 	fpath := filepath.Join(tmp, "ts-1.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("messages", fpath))
+	require.NoError(t, r.Route("messages", fpath, "researcher", "agent-1"))
 	require.NotNil(t, gotMsg)
 	assert.Equal(t, "researcher", gotMsg.Role)
 	assert.Equal(t, "agent-1", gotMsg.SubAgentID)
@@ -76,17 +76,15 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-2.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("tasks", fpath))
-	require.NotNil(t, gotTask)
-	assert.Equal(t, "daily", gotTask.Name)
+	require.NoError(t, r.Route("tasks", fpath, "", ""))
+	require.NotNil(t, gotTask)	assert.Equal(t, "daily", gotTask.Name)
 }
 
 func TestRouter_UnknownSubdir(t *testing.T) {
-	r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {})
-	err := r.Route("unknown", "/tmp/file.json")
-	assert.Error(t, err)
+        r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {})
+        err := r.Route("unknown", "/tmp/file.json", "", "")
+        assert.Error(t, err)
 }
-
 func TestRouter_DispatchesAgentFile(t *testing.T) {
 	var gotAgent *ipc.AgentFile
 	r := ipc.NewRouter(
@@ -102,9 +100,8 @@ func TestRouter_DispatchesAgentFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-3.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("agents", fpath))
-	require.NotNil(t, gotAgent)
-	assert.Equal(t, "Researcher", gotAgent.Role)
+	require.NoError(t, r.Route("agents", fpath, "", ""))
+	require.NotNil(t, gotAgent)	assert.Equal(t, "Researcher", gotAgent.Role)
 	assert.Equal(t, "find papers", gotAgent.Prompt)
 }
 
@@ -130,7 +127,7 @@ func TestWatcher_PicksUpAgentFiles(t *testing.T) {
 
 	w, err := ipc.NewWatcher(r)
 	require.NoError(t, err)
-	require.NoError(t, w.RegisterDir(tmp))
+	require.NoError(t, w.RegisterDir(tmp, "", ""))
 	go w.Watch(ctx)
 	time.Sleep(50 * time.Millisecond)
 
@@ -168,7 +165,7 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 
 	w, err := ipc.NewWatcher(r)
 	require.NoError(t, err)
-	require.NoError(t, w.RegisterDir(tmp))
+	require.NoError(t, w.RegisterDir(tmp, "", ""))
 	go w.Watch(ctx)
 	time.Sleep(50 * time.Millisecond) // let watcher start
 
