@@ -17,7 +17,12 @@ func TestHandleSendMessage_WritesFile(t *testing.T) {
 		os.MkdirAll(filepath.Join(tmp, sub), 0755)
 	}
 
-	h := &toolHandlers{ipcDir: tmp, chatID: "chat-55"}
+	h := &toolHandlers{
+		ipcDir:     tmp,
+		chatID:     "chat-55",
+		role:       "researcher",
+		subAgentID: "agent-123",
+	}
 	result, err := h.handleSendMessage("Hello", "alice")
 	require.NoError(t, err)
 	assert.Contains(t, result, "ok")
@@ -29,6 +34,8 @@ func TestHandleSendMessage_WritesFile(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &msg))
 	assert.Equal(t, "Hello", msg.Text)
 	assert.Equal(t, "chat-55", msg.ChatID)
+	assert.Equal(t, "researcher", msg.Role)
+	assert.Equal(t, "agent-123", msg.SubAgentID)
 }
 
 func TestHandleScheduleTask_ReturnsUUID(t *testing.T) {

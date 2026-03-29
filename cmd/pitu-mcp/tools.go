@@ -12,12 +12,20 @@ import (
 )
 
 type toolHandlers struct {
-	ipcDir string
-	chatID string
+	ipcDir     string
+	chatID     string
+	role       string
+	subAgentID string
 }
 
 func (h *toolHandlers) handleSendMessage(text, sender string) (string, error) {
-	msg := ipc.OutboundMessage{ChatID: h.chatID, Text: text, Type: "message"}
+	msg := ipc.OutboundMessage{
+		ChatID:     h.chatID,
+		Text:       text,
+		Type:       "message",
+		Role:       h.role,
+		SubAgentID: h.subAgentID,
+	}
 	if err := h.writeIPC("messages", msg); err != nil {
 		return "", err
 	}

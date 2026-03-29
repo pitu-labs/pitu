@@ -14,8 +14,15 @@ func main() {
 	if chatID == "" {
 		log.Fatal("pitu-mcp: PITU_CHAT_ID is not set")
 	}
+	role := os.Getenv("PITU_ROLE")
+	subAgentID := os.Getenv("PITU_SUB_AGENT_ID")
 
-	h := &toolHandlers{ipcDir: ipcDir, chatID: chatID}
+	h := &toolHandlers{
+		ipcDir:     ipcDir,
+		chatID:     chatID,
+		role:       role,
+		subAgentID: subAgentID,
+	}
 	s := buildServer(h)
 
 	if err := server.ServeStdio(s); err != nil {
