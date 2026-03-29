@@ -1,6 +1,6 @@
 # Pitu — Operator Guide
 
-Pitu is a local-first Telegram agent harness. Agents run inside rootless Podman containers (OpenCode + pitu-mcp). This file is your guide to working with the codebase.
+Pitu is a local-first agent kernel. Agents run inside rootless Podman containers (OpenCode + pitu-mcp). This file is your guide to working with the codebase.
 
 ## Build Commands
 

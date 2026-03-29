@@ -6,13 +6,18 @@ import (
 	"strings"
 )
 
-// WriteContext creates CONTEXT.md in dir for the given chatID, skills, and agent config.
-// Does nothing if CONTEXT.md already exists (preserves accumulated memory).
+// WriteContext always refreshes SYSTEM.md with the current agent config and skills,
+// and creates CONTEXT.md (the agent's mutable memory scratch-pad) only if absent.
+// Splitting these files means identity/persona changes are picked up on the next message
+// without wiping any notes the agent has accumulated in CONTEXT.md.
 func WriteContext(dir, chatID string, discovered []Skill, agent AgentConfig) error {
-	path := filepath.Join(dir, "CONTEXT.md")
-	if _, err := os.Stat(path); err == nil {
-		return nil // already exists — don't overwrite
+	if err := writeSystem(dir, chatID, discovered, agent); err != nil {
+		return err
 	}
+	return writeMemory(dir)
+}
+
+func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) error {
 	catalog := BuildCatalog(discovered)
 
 	var b strings.Builder
@@ -47,5 +52,13 @@ func WriteContext(dir, chatID string, discovered []Skill, agent AgentConfig) err
 		b.WriteString("You are a helpful AI assistant running inside Pitu. Respond to messages via the mcp__pitu__sendMessage tool.\n")
 	}
 
-	return os.WriteFile(path, []byte(b.String()), 0644)
+	return os.WriteFile(filepath.Join(dir, "SYSTEM.md"), []byte(b.String()), 0644)
+}
+
+func writeMemory(dir string) error {
+	path := filepath.Join(dir, "CONTEXT.md")
+	if _, err := os.Stat(path); err == nil {
+		return nil // already exists — preserve accumulated memory
+	}
+	return os.WriteFile(path, []byte("# Memory\n\nUse this file to record notes, reminders, and context across conversations.\n"), 0644)
 }

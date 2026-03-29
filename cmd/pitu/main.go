@@ -50,14 +50,23 @@ func main() {
 	}
 	defer st.Close()
 
-	// Skills discovery
+	// Skills discovery — use binary-relative paths so the service finds bundled
+	// skills regardless of CWD (systemd/launchd don't set a meaningful working dir).
 	home, _ := os.UserHomeDir()
-	skillsPaths := append([]string{
+	skillsPaths := []string{
 		filepath.Join(home, ".agents", "skills"),
 		filepath.Join(home, ".pitu", "skills"),
-		".agents/skills",
-		".pitu/skills",
-	}, cfg.Skills.ExtraPaths...)
+	}
+	if exe, err := os.Executable(); err == nil {
+		if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+			binaryDir := filepath.Dir(resolved)
+			skillsPaths = append(skillsPaths,
+				filepath.Join(binaryDir, ".agents", "skills"),
+				filepath.Join(binaryDir, ".pitu", "skills"),
+			)
+		}
+	}
+	skillsPaths = append(skillsPaths, cfg.Skills.ExtraPaths...)
 	discovered := skills.Discover(skillsPaths)
 	log.Printf("pitu: discovered %d skills", len(discovered))
 

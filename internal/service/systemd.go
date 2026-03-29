@@ -48,7 +48,7 @@ func (m *SystemdManager) isInstalled() bool {
 // Exported for testing; callers should use Install() for end-to-end behaviour.
 func UnitContent(binary, home string) string {
 	return fmt.Sprintf(`[Unit]
-Description=Pitu Telegram agent harness
+Description=Pitu agent kernel
 After=network.target
 
 [Service]
