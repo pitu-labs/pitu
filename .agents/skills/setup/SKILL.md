@@ -121,19 +121,21 @@ This may take several minutes on the first run as base layers are downloaded.
 
 This phase is optional. If the user wants to skip it, proceed directly to Phase 6.
 
+Ask the user: "Would you like to personalise your agent now? You can skip this and do it later. (yes / skip)". If they say skip or no, go to Phase 6.
+
 Ask the user each of the following questions in order. If they skip a question (say "skip", "no", or leave it blank), do not create that file.
 
 **Question 1:** "What would you like your agent to be called, and what role should it play? For example: 'You are Aria, a focused assistant for software projects.'"
 
-If answered: create `~/.pitu/agent/IDENTITY.md` with the user's answer as the file content.
+If answered: note the content for `~/.pitu/agent/IDENTITY.md`.
 
 **Question 2:** "How should your agent behave? Describe its personality, tone, and any hard limits. For example: 'Direct and friendly. Never discuss competitors. Keep answers concise.'"
 
-If answered: create `~/.pitu/agent/SOUL.md` with the user's answer as the file content.
+If answered: note the content for `~/.pitu/agent/SOUL.md`.
 
 **Question 3:** "Tell me about yourself — your name, timezone, and how you prefer to work. For example: 'I'm Rob, UTC-5, I prefer short replies and bullet points.'"
 
-If answered: create `~/.pitu/agent/USER.md` with the user's answer as the file content.
+If answered: note the content for `~/.pitu/agent/USER.md`.
 
 After handling all three questions:
 
