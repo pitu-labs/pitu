@@ -117,6 +117,48 @@ This may take several minutes on the first run as base layers are downloaded.
 
 ---
 
+### Phase 5.5 — Agent Personalisation (optional)
+
+This phase is optional. If the user wants to skip it, proceed directly to Phase 6.
+
+Ask the user each of the following questions in order. If they skip a question (say "skip", "no", or leave it blank), do not create that file.
+
+**Question 1:** "What would you like your agent to be called, and what role should it play? For example: 'You are Aria, a focused assistant for software projects.'"
+
+If answered: create `~/.pitu/agent/IDENTITY.md` with the user's answer as the file content.
+
+**Question 2:** "How should your agent behave? Describe its personality, tone, and any hard limits. For example: 'Direct and friendly. Never discuss competitors. Keep answers concise.'"
+
+If answered: create `~/.pitu/agent/SOUL.md` with the user's answer as the file content.
+
+**Question 3:** "Tell me about yourself — your name, timezone, and how you prefer to work. For example: 'I'm Rob, UTC-5, I prefer short replies and bullet points.'"
+
+If answered: create `~/.pitu/agent/USER.md` with the user's answer as the file content.
+
+After handling all three questions:
+
+```bash
+mkdir -p ~/.pitu/agent
+```
+
+Write each answered file. For example, if the user answered Question 1 with "You are Aria, a focused assistant.":
+
+```bash
+cat > ~/.pitu/agent/IDENTITY.md << 'EOF'
+You are Aria, a focused assistant.
+EOF
+```
+
+**Verify:** List the files that were created:
+
+```bash
+ls ~/.pitu/agent/
+```
+
+Tell the user which files were created and that changes will take effect for new chats. Existing chats can be refreshed by deleting `~/.pitu/data/{chatID}/memory/CONTEXT.md`.
+
+---
+
 ### Phase 6 — Smoke Test
 
 1. Install and start the harness as a system service:
