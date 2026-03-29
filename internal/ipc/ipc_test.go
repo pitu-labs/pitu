@@ -34,6 +34,33 @@ func TestRouter_DispatchesMessageFile(t *testing.T) {
 	assert.Equal(t, "reply", gotMsg.Text)
 }
 
+func TestRouter_DispatchesMessageFile_WithRoleAndSubAgentID(t *testing.T) {
+	var gotMsg *ipc.OutboundMessage
+	r := ipc.NewRouter(
+		func(m ipc.OutboundMessage) { gotMsg = &m },
+		func(f ipc.TaskFile) {},
+		func(g ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+	)
+
+	msg := ipc.OutboundMessage{
+		ChatID:     "123",
+		Text:       "reply",
+		Type:       "message",
+		Role:       "researcher",
+		SubAgentID: "agent-1",
+	}
+	data, _ := json.Marshal(msg)
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "ts-1.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+
+	require.NoError(t, r.Route("messages", fpath))
+	require.NotNil(t, gotMsg)
+	assert.Equal(t, "researcher", gotMsg.Role)
+	assert.Equal(t, "agent-1", gotMsg.SubAgentID)
+}
+
 func TestRouter_DispatchesTaskFile(t *testing.T) {
 	var gotTask *ipc.TaskFile
 	r := ipc.NewRouter(

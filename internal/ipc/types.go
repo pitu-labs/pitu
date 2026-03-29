@@ -10,9 +10,11 @@ type InboundMessage struct {
 
 // OutboundMessage is written by pitu-mcp to ipc/messages/.
 type OutboundMessage struct {
-	ChatID string `json:"chat_id"`
-	Text   string `json:"text"`
-	Type   string `json:"type"`
+	ChatID     string `json:"chat_id"`
+	Text       string `json:"text"`
+	Type       string `json:"type"`
+	Role       string `json:"role,omitempty"`          // New: source role
+	SubAgentID string `json:"sub_agent_id,omitempty"`  // New: source agent ID
 }
 
 // TaskFile is written by pitu-mcp to ipc/tasks/.
