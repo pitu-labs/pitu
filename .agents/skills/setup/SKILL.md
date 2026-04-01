@@ -140,24 +140,32 @@ If answered: note the content for `~/.pitu/agent/USER.md`.
 After handling all three questions:
 
 ```bash
-mkdir -p ~/.pitu/agent
+mkdir -p "$HOME/.pitu/agent"
 ```
 
-Write each answered file. For example, if the user answered Question 1 with "You are Aria, a focused assistant.":
+Write each answered file using the Write tool with the absolute path (e.g. `/home/username/.pitu/agent/IDENTITY.md`). Resolve the home directory first:
 
 ```bash
-cat > ~/.pitu/agent/IDENTITY.md << 'EOF'
+echo "$HOME"
+```
+
+Then write each answered file. For example, if `$HOME` is `/home/rob` and the user answered Question 1 with "You are Aria, a focused assistant.":
+
+```bash
+cat > /home/rob/.pitu/agent/IDENTITY.md << 'EOF'
 You are Aria, a focused assistant.
 EOF
 ```
 
+**IMPORTANT:** Always use the absolute path (never `~` or `$HOME` in heredocs), because `~` is not expanded by all tools and may create a literal `~/` directory instead of writing to the user's home directory.
+
 **Verify:** List the files that were created:
 
 ```bash
-ls ~/.pitu/agent/
+ls "$HOME/.pitu/agent/"
 ```
 
-Tell the user which files were created and that changes will take effect for new chats. Existing chats can be refreshed by deleting `~/.pitu/data/{chatID}/memory/CONTEXT.md`.
+Tell the user which files were created and that changes will take effect for new chats. Existing chats can be refreshed by deleting `$HOME/.pitu/data/{chatID}/memory/SYSTEM.md`.
 
 ---
 

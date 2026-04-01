@@ -2,9 +2,23 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
+
+// expandHome replaces a leading "~/" with the user's home directory.
+func expandHome(path string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return home + path[1:]
+}
 
 type Config struct {
 	Telegram  TelegramConfig  `toml:"telegram"`
@@ -52,5 +66,6 @@ func Load(path string) (*Config, error) {
 	if cfg.Telegram.BotToken == "" {
 		return nil, fmt.Errorf("config: bot_token is required")
 	}
+	cfg.DB.Path = expandHome(cfg.DB.Path)
 	return cfg, nil
 }
