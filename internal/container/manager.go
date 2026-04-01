@@ -1,6 +1,7 @@
 package container
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -116,9 +117,12 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 	}
 
 	args := m.BuildRunArgs(chatID, ipcDir, memDir, m.skillsDir, opencodeDir, envFilePath)
-	out, err := exec.CommandContext(ctx, "podman", args...).Output()
+	cmd := exec.CommandContext(ctx, "podman", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("podman run: %w (output: %s)", err, out)
+		return nil, fmt.Errorf("podman run: %w (stderr: %s)", err, stderr.String())
 	}
 	containerID := string(out)
 	containerID = containerID[:len(containerID)-1] // trim newline
@@ -179,9 +183,12 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 	}
 
 	args := m.BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir, skillsDir, opencodeDir, envFilePath)
-	out, err := exec.CommandContext(ctx, "podman", args...).Output()
+	cmd2 := exec.CommandContext(ctx, "podman", args...)
+	var stderr2 bytes.Buffer
+	cmd2.Stderr = &stderr2
+	out, err := cmd2.Output()
 	if err != nil {
-		return nil, fmt.Errorf("podman run subagent: %w (output: %s)", err, out)
+		return nil, fmt.Errorf("podman run subagent: %w (stderr: %s)", err, stderr2.String())
 	}
 	containerID := string(out)
 	containerID = containerID[:len(containerID)-1] // trim newline
