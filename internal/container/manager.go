@@ -293,7 +293,9 @@ func (m *Manager) BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir,
 // BuildExecArgs returns the podman exec arguments for running OpenCode on a message. Public for testability.
 func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession bool) []string {
 	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
-	args := []string{"exec", containerID, "opencode", "run"}
+	// --workdir places OpenCode in the memory dir so it discovers AGENTS.md via
+	// its standard upward traversal — no vendor-specific config needed.
+	args := []string{"exec", "--workdir", "/workspace/memory", containerID, "opencode", "run"}
 	if continueSession {
 		args = append(args, "-c")
 	}

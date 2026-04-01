@@ -158,5 +158,5 @@ func TestWriteContext_MinimalInstructionWithSoul(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.NotContains(t, content, "You are a helpful AI assistant")
-	assert.Contains(t, content, "Respond to messages via the mcp__pitu__sendMessage tool.")
+	assert.Contains(t, content, "mcp__pitu__sendMessage")
 }

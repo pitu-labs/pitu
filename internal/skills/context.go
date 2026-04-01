@@ -47,9 +47,9 @@ func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) erro
 	b.WriteString("\n\n## Instructions\n\n")
 
 	if agent.Soul != "" {
-		b.WriteString("Respond to messages via the mcp__pitu__sendMessage tool.\n")
+		b.WriteString("Respond to each message with a single mcp__pitu__sendMessage call. Do not call it more than once per message.\n")
 	} else {
-		b.WriteString("You are a helpful AI assistant running inside Pitu. Respond to messages via the mcp__pitu__sendMessage tool.\n")
+		b.WriteString("You are a helpful AI assistant running inside Pitu. Respond to each message with a single mcp__pitu__sendMessage call. Do not call it more than once per message.\n")
 	}
 
 	return os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(b.String()), 0644)

@@ -13,8 +13,7 @@ import (
 // interactive setup.
 func GenerateOpenCodeConfig(chatID string, model config.ModelConfig) string {
 	cfg := map[string]any{
-		"$schema":      "https://opencode.ai/config.json",
-		"instructions": []string{"/workspace/memory/AGENTS.md"},
+		"$schema": "https://opencode.ai/config.json",
 		"mcp": map[string]any{
 			"pitu": map[string]any{
 				"type":    "local",
