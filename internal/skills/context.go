@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// WriteContext always refreshes SYSTEM.md with the current agent config and skills,
+// WriteContext always refreshes AGENTS.md with the current agent config and skills,
 // and creates CONTEXT.md (the agent's mutable memory scratch-pad) only if absent.
 // Splitting these files means identity/persona changes are picked up on the next message
 // without wiping any notes the agent has accumulated in CONTEXT.md.
@@ -52,7 +52,7 @@ func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) erro
 		b.WriteString("You are a helpful AI assistant running inside Pitu. Respond to messages via the mcp__pitu__sendMessage tool.\n")
 	}
 
-	return os.WriteFile(filepath.Join(dir, "SYSTEM.md"), []byte(b.String()), 0644)
+	return os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(b.String()), 0644)
 }
 
 func writeMemory(dir string) error {

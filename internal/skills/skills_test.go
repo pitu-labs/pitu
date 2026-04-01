@@ -67,8 +67,8 @@ func TestWriteContext_CreatesBothFiles(t *testing.T) {
 
 	require.NoError(t, skills.WriteContext(tmp, "chat-42", found, skills.AgentConfig{}))
 
-	// SYSTEM.md holds the config content
-	system, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	// AGENTS.md holds the config content
+	system, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(system), "chat-42")
 	assert.Contains(t, string(system), "test-skill")
@@ -82,10 +82,10 @@ func TestWriteContext_SystemAlwaysRefreshed(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, skills.AgentConfig{Identity: "You are Aria."}))
 
-	// Second call with different identity — SYSTEM.md must reflect new config
+	// Second call with different identity — AGENTS.md must reflect new config
 	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, skills.AgentConfig{Identity: "You are BB-8."}))
 
-	system, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	system, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(system), "You are BB-8.")
 	assert.NotContains(t, string(system), "You are Aria.")
@@ -104,7 +104,7 @@ func TestWriteContext_MemoryNotOverwritten(t *testing.T) {
 func TestWriteContext_DoesNotContainCapabilitiesBlock(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, skills.WriteContext(tmp, "chat-99", nil, skills.AgentConfig{}))
-	data, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
 	assert.NotContains(t, content, "Capabilities & Limitations")
@@ -120,7 +120,7 @@ func TestWriteContext_IncludesAgentSections(t *testing.T) {
 		User:     "User is Rob.",
 	}
 	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, agent))
-	data, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, "## Identity")
@@ -134,7 +134,7 @@ func TestWriteContext_IncludesAgentSections(t *testing.T) {
 func TestWriteContext_OmitsSectionsWhenEmpty(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, skills.WriteContext(tmp, "chat-2", nil, skills.AgentConfig{}))
-	data, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
 	assert.NotContains(t, content, "## Identity")
@@ -145,7 +145,7 @@ func TestWriteContext_OmitsSectionsWhenEmpty(t *testing.T) {
 func TestWriteContext_GenericInstructionWithoutSoul(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, skills.WriteContext(tmp, "chat-3", nil, skills.AgentConfig{}))
-	data, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "You are a helpful AI assistant running inside Pitu.")
 }
@@ -154,7 +154,7 @@ func TestWriteContext_MinimalInstructionWithSoul(t *testing.T) {
 	tmp := t.TempDir()
 	agent := skills.AgentConfig{Soul: "Be concise."}
 	require.NoError(t, skills.WriteContext(tmp, "chat-4", nil, agent))
-	data, err := os.ReadFile(filepath.Join(tmp, "SYSTEM.md"))
+	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
 	assert.NotContains(t, content, "You are a helpful AI assistant")

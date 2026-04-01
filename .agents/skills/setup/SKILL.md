@@ -165,7 +165,7 @@ EOF
 ls "$HOME/.pitu/agent/"
 ```
 
-Tell the user which files were created and that changes will take effect for new chats. Existing chats can be refreshed by deleting `$HOME/.pitu/data/{chatID}/memory/SYSTEM.md`.
+Tell the user which files were created and that changes will take effect for new chats. Existing chats can be refreshed by deleting `$HOME/.pitu/data/{chatID}/memory/AGENTS.md`.
 
 ---
 
