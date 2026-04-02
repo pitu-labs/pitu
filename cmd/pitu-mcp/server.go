@@ -41,7 +41,7 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 	})
 
 	s.AddTool(mcp.NewTool("listTasks",
-		mcp.WithDescription("Enqueues a list-tasks request for this chat (response is processed asynchronously by the host)"),
+		mcp.WithDescription("Returns the path to the tasks file for this chat. The host keeps /workspace/memory/tasks.json up to date on every create or pause. Read that file to get the current task list. The file may not exist if no tasks have been created yet; treat its absence as an empty task list."),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		result, err := h.handleListTasks()
 		if err != nil {

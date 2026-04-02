@@ -120,6 +120,9 @@ func main() {
 			switch tf.Action {
 			case "create":
 				t := store.Task{ID: tf.ID, ChatID: tf.ChatID, Name: tf.Name, Schedule: tf.Schedule, Prompt: tf.Prompt}
+				// Validate before SaveTask so an invalid schedule is rejected before the DB
+				// is touched. Add would also reject it (same parser), but SaveTask would have
+				// already persisted the row, requiring a compensating delete.
 				if err := sched.Validate(t.Schedule); err != nil {
 					log.Printf("pitu: task %s: invalid schedule: %v", t.ID, err)
 					return
@@ -186,7 +189,20 @@ func main() {
 	// Load persisted tasks into scheduler
 	activeTasks, _ := st.GetAllActiveTasks()
 	for _, t := range activeTasks {
-		sched.Add(t)
+		if err := sched.Add(t); err != nil {
+			log.Printf("pitu: startup: task %s: add to cron: %v", t.ID, err)
+		}
+	}
+
+	// Write startup snapshots so agents see current task state immediately after restart.
+	startupChats := map[string]struct{}{}
+	for _, t := range activeTasks {
+		startupChats[t.ChatID] = struct{}{}
+	}
+	for chatID := range startupChats {
+		if err := writeTasksSnapshot(st, dataDir, chatID); err != nil {
+			log.Printf("pitu: startup: snapshot for chat %s: %v", chatID, err)
+		}
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())

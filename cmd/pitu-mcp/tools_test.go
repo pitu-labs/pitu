@@ -51,20 +51,11 @@ func TestHandleScheduleTask_ReturnsUUID(t *testing.T) {
 	require.Len(t, entries, 1)
 }
 
-func TestHandleListTasks_WritesFile(t *testing.T) {
-	tmp := t.TempDir()
-	os.MkdirAll(filepath.Join(tmp, "tasks"), 0755)
-
-	h := &toolHandlers{ipcDir: tmp, chatID: "c2"}
-	_, err := h.handleListTasks()
+func TestHandleListTasks_ReturnsPath(t *testing.T) {
+	h := &toolHandlers{ipcDir: "", chatID: "c2"}
+	result, err := h.handleListTasks()
 	require.NoError(t, err)
-
-	entries, _ := os.ReadDir(filepath.Join(tmp, "tasks"))
-	require.Len(t, entries, 1)
-	data, _ := os.ReadFile(filepath.Join(tmp, "tasks", entries[0].Name()))
-	var tf ipc.TaskFile
-	require.NoError(t, json.Unmarshal(data, &tf))
-	assert.Equal(t, "list", tf.Action)
+	assert.Equal(t, `{"path":"/workspace/memory/tasks.json"}`, result)
 }
 
 func TestHandleSpawnAgent_WritesAgentFile(t *testing.T) {

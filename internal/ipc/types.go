@@ -19,7 +19,7 @@ type OutboundMessage struct {
 
 // TaskFile is written by pitu-mcp to ipc/tasks/.
 type TaskFile struct {
-	Action   string `json:"action"`       // "create" | "pause" | "list"
+	Action   string `json:"action"`       // "create" | "pause"
 	ID       string `json:"id,omitempty"` // required for "pause"
 	Name     string `json:"name,omitempty"`
 	Schedule string `json:"schedule,omitempty"` // cron or RFC3339

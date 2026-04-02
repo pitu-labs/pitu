@@ -43,13 +43,7 @@ func (h *toolHandlers) handleScheduleTask(name, schedule, prompt string) (string
 }
 
 func (h *toolHandlers) handleListTasks() (string, error) {
-	// Note: due to the IPC design, listTasks is fire-and-forget from the agent's
-	// perspective — the host processes the file asynchronously. The agent will not
-	// receive the task list back in this call. If synchronous task listing is needed
-	// in future, consider a response-file mechanism or a direct read from the
-	// /workspace/memory/ directory where the host could write a tasks snapshot.
-	tf := ipc.TaskFile{Action: "list", ChatID: h.chatID}
-	return `{"ok":true}`, h.writeIPC("tasks", tf)
+	return `{"path":"/workspace/memory/tasks.json"}`, nil
 }
 
 func (h *toolHandlers) handlePauseTask(id string) (string, error) {
