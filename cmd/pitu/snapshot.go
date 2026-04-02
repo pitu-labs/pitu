@@ -31,7 +31,7 @@ func writeTasksSnapshot(st *store.Store, dataDir, chatID string) error {
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 		Tasks:     tasks,
 	}
-	data, err := json.Marshal(snap)
+	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("writeTasksSnapshot: marshal: %w", err)
 	}

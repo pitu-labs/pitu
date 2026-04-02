@@ -120,11 +120,36 @@ func main() {
 			switch tf.Action {
 			case "create":
 				t := store.Task{ID: tf.ID, ChatID: tf.ChatID, Name: tf.Name, Schedule: tf.Schedule, Prompt: tf.Prompt}
-				st.SaveTask(t)
-				sched.Add(t)
+				if err := sched.Validate(t.Schedule); err != nil {
+					log.Printf("pitu: task %s: invalid schedule: %v", t.ID, err)
+					return
+				}
+				if err := st.SaveTask(t); err != nil {
+					log.Printf("pitu: task %s: save: %v", t.ID, err)
+					return
+				}
+				if err := sched.Add(t); err != nil {
+					log.Printf("pitu: task %s: add to cron: %v", t.ID, err)
+					if delErr := st.DeleteTask(t.ID); delErr != nil {
+						log.Printf("pitu: task %s: compensating delete failed: %v", t.ID, delErr)
+					}
+					if err := writeTasksSnapshot(st, dataDir, t.ChatID); err != nil {
+						log.Printf("pitu: task %s: snapshot: %v", t.ID, err)
+					}
+					return
+				}
+				if err := writeTasksSnapshot(st, dataDir, t.ChatID); err != nil {
+					log.Printf("pitu: task %s: snapshot: %v", t.ID, err)
+				}
 			case "pause":
-				st.PauseTask(tf.ID)
+				if err := st.PauseTask(tf.ID); err != nil {
+					log.Printf("pitu: task %s: pause: %v", tf.ID, err)
+					return
+				}
 				sched.Pause(tf.ID)
+				if err := writeTasksSnapshot(st, dataDir, tf.ChatID); err != nil {
+					log.Printf("pitu: task %s: snapshot: %v", tf.ID, err)
+				}
 			}
 		},
 		func(gf ipc.GroupFile) {
