@@ -9,6 +9,11 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// schedulerParser is the single source of truth for accepted cron syntax.
+var schedulerParser = cron.NewParser(
+	cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+)
+
 type Scheduler struct {
 	dispatch func(chatID, prompt string)
 	cr       *cron.Cron
@@ -19,7 +24,7 @@ type Scheduler struct {
 func New(dispatch func(chatID, prompt string)) *Scheduler {
 	return &Scheduler{
 		dispatch: dispatch,
-		cr:       cron.New(),
+		cr:       cron.New(cron.WithParser(schedulerParser)),
 	}
 }
 
@@ -43,6 +48,15 @@ func (s *Scheduler) Pause(taskID string) {
 	if v, ok := s.entryIDs.LoadAndDelete(taskID); ok {
 		s.cr.Remove(v.(cron.EntryID))
 	}
+}
+
+// Validate checks whether schedule is a valid cron expression or descriptor
+// without registering anything. Uses the same parser as cron.New().
+func (s *Scheduler) Validate(schedule string) error {
+	if _, err := schedulerParser.Parse(schedule); err != nil {
+		return fmt.Errorf("scheduler: invalid schedule %q: %w", schedule, err)
+	}
+	return nil
 }
 
 // Run starts the cron scheduler and blocks until ctx is cancelled.

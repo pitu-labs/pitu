@@ -48,3 +48,21 @@ func TestScheduler_PausedTaskDoesNotFire(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	assert.Zero(t, fired.Load())
 }
+
+func TestValidate_AcceptsValidSchedules(t *testing.T) {
+	s := scheduler.New(func(string, string) {})
+	assert.NoError(t, s.Validate("0 8 * * *"))
+	assert.NoError(t, s.Validate("@daily"))
+	assert.NoError(t, s.Validate("@every 30m"))
+	assert.NoError(t, s.Validate("*/5 * * * *"))
+}
+
+func TestValidate_RejectsInvalidSchedules(t *testing.T) {
+	s := scheduler.New(func(string, string) {})
+	err := s.Validate("not-a-cron")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `"not-a-cron"`)
+
+	assert.Error(t, s.Validate("99 * * * *"))
+	assert.Error(t, s.Validate(""))
+}
