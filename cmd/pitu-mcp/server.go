@@ -51,7 +51,7 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 	})
 
 	s.AddTool(mcp.NewTool("pauseTask",
-		mcp.WithDescription("Pause a scheduled task by ID"),
+		mcp.WithDescription("Pause (stop/cancel) a scheduled task by ID. This is the only way to stop a task from running."),
 		mcp.WithString("id", mcp.Required(), mcp.Description("Task UUID returned by scheduleTask")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		id := req.GetString("id", "")

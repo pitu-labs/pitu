@@ -216,8 +216,11 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 func (m *Manager) execOpenCode(ctx context.Context, handle *Handle, inputPath string) error {
 	args := m.BuildExecArgs(handle.ID, inputPath, handle.hasSession)
 	out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
+	if len(out) > 0 {
+		log.Printf("opencode output (container %s): %s", handle.ID[:12], out)
+	}
 	if err != nil {
-		return fmt.Errorf("podman exec opencode: %w (output: %s)", err, out)
+		return fmt.Errorf("podman exec opencode: %w", err)
 	}
 	handle.hasSession = true
 	return nil

@@ -53,6 +53,7 @@ func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) erro
 	}
 	b.WriteString("Optionally, before or after sending your response, you may call mcp__pitu__reactToMessage with the inbound message_id and an appropriate emoji reaction.\n")
 	b.WriteString("Before scheduling a new task, always call mcp__pitu__listTasks and read the tasks file to check for existing tasks with the same name. If a duplicate exists, ask the user for confirmation before creating another.\n")
+	b.WriteString("To stop, cancel, or delete a task, use mcp__pitu__pauseTask with the task's UUID from the tasks file. There is no separate cancel or delete tool.\n")
 
 	return os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(b.String()), 0644)
 }
