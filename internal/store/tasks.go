@@ -31,6 +31,11 @@ func (s *Store) PauseTask(id string) error {
 	return err
 }
 
+func (s *Store) DeleteTask(id string) error {
+	_, err := s.db.Exec(`DELETE FROM tasks WHERE id=?`, id)
+	return err
+}
+
 func (s *Store) queryTasks(query string, args ...any) ([]Task, error) {
 	rows, err := s.db.Query(query, args...)
 	if err != nil {

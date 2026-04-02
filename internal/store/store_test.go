@@ -64,6 +64,28 @@ func TestPauseTask(t *testing.T) {
 	assert.Empty(t, tasks)
 }
 
+func TestDeleteTask(t *testing.T) {
+	s := openTestDB(t)
+	task := store.Task{ID: "uuid-del", ChatID: "123", Name: "to-delete", Schedule: "* * * * *", Prompt: "p"}
+	require.NoError(t, s.SaveTask(task))
+
+	// Confirm it exists
+	tasks, err := s.GetTasksByChatID("123")
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	// Delete it
+	require.NoError(t, s.DeleteTask("uuid-del"))
+
+	// Confirm it's gone
+	tasks, err = s.GetTasksByChatID("123")
+	require.NoError(t, err)
+	assert.Empty(t, tasks)
+
+	// Deleting a non-existent ID is a no-op, not an error
+	require.NoError(t, s.DeleteTask("uuid-del"), "deleting non-existent ID must not error")
+}
+
 func TestRegisterAndGetGroup(t *testing.T) {
 	s := openTestDB(t)
 	require.NoError(t, s.RegisterGroup("123", "my-group", "test group"))
