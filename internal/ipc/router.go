@@ -7,14 +7,15 @@ import (
 )
 
 type Router struct {
-	onMessage func(OutboundMessage)
-	onTask    func(TaskFile)
-	onGroup   func(GroupFile)
-	onAgent   func(AgentFile)
+	onMessage  func(OutboundMessage)
+	onTask     func(TaskFile)
+	onGroup    func(GroupFile)
+	onAgent    func(AgentFile)
+	onReaction func(ReactionFile)
 }
 
-func NewRouter(onMessage func(OutboundMessage), onTask func(TaskFile), onGroup func(GroupFile), onAgent func(AgentFile)) *Router {
-	return &Router{onMessage: onMessage, onTask: onTask, onGroup: onGroup, onAgent: onAgent}
+func NewRouter(onMessage func(OutboundMessage), onTask func(TaskFile), onGroup func(GroupFile), onAgent func(AgentFile), onReaction func(ReactionFile)) *Router {
+	return &Router{onMessage: onMessage, onTask: onTask, onGroup: onGroup, onAgent: onAgent, onReaction: onReaction}
 }
 
 // Route reads the file at path and dispatches to the appropriate handler based on subdir.
@@ -49,6 +50,12 @@ func (r *Router) Route(subdir, path, role, subAgentID string) error {
 			return fmt.Errorf("ipc: unmarshal agent: %w", err)
 		}
 		r.onAgent(a)
+	case "reactions":
+		var rf ReactionFile
+		if err := json.Unmarshal(data, &rf); err != nil {
+			return fmt.Errorf("ipc: unmarshal reaction: %w", err)
+		}
+		r.onReaction(rf)
 	default:
 		return fmt.Errorf("ipc: unknown subdir %q", subdir)
 	}

@@ -90,5 +90,19 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 		return mcp.NewToolResultText(result), nil
 	})
 
+	s.AddTool(mcp.NewTool("reactToMessage",
+		mcp.WithDescription("React to the user's message with an emoji reaction"),
+		mcp.WithString("message_id", mcp.Required(), mcp.Description("Telegram message ID from the inbound message")),
+		mcp.WithString("emoji", mcp.Required(), mcp.Description("Single Unicode emoji to react with (e.g. 👍, ❤️, 🔥)")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		messageID := req.GetString("message_id", "")
+		emoji := req.GetString("emoji", "")
+		result, err := h.handleReactToMessage(messageID, emoji)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(result), nil
+	})
+
 	return s
 }

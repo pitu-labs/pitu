@@ -51,6 +51,7 @@ func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) erro
 	} else {
 		b.WriteString("You are a helpful AI assistant running inside Pitu. Respond to each message with a single mcp__pitu__sendMessage call. Do not call it more than once per message.\n")
 	}
+	b.WriteString("Optionally, before or after sending your response, you may call mcp__pitu__reactToMessage with the inbound message_id and an appropriate emoji reaction.\n")
 
 	return os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(b.String()), 0644)
 }

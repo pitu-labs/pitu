@@ -299,7 +299,7 @@ func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession b
 	if continueSession {
 		args = append(args, "-c")
 	}
-	args = append(args, "-f", containerPath, "--", "Process the attached inbound message and respond via mcp__pitu__sendMessage.")
+	args = append(args, "-f", containerPath, "--", "Process the inbound message from the input file.")
 	return args
 }
 

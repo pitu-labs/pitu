@@ -32,7 +32,7 @@ func NewWatcher(r *Router) (*Watcher, error) {
 // RegisterDir adds ipcRootDir/messages/, /tasks/, /groups/, and /agents/ to the watch list.
 // Safe to call at any time, including after Watch has started.
 func (w *Watcher) RegisterDir(ipcRootDir, role, subAgentID string) error {
-        for _, sub := range []string{"messages", "tasks", "groups", "agents"} {
+        for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
                 dir := filepath.Join(ipcRootDir, sub)
                 if err := os.MkdirAll(dir, 0755); err != nil {
                         return fmt.Errorf("ipc: mkdir %s: %w", dir, err)

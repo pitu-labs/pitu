@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,6 +69,18 @@ func (h *toolHandlers) handleSpawnAgent(role, prompt string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf(`{"subAgentId":%q}`, id), nil
+}
+
+func (h *toolHandlers) handleReactToMessage(messageID, emoji string) (string, error) {
+	mid, err := strconv.Atoi(messageID)
+	if err != nil {
+		return "", fmt.Errorf("pitu-mcp: reactToMessage: invalid message_id %q: %w", messageID, err)
+	}
+	rf := ipc.ReactionFile{ChatID: h.chatID, MessageID: mid, Emoji: emoji}
+	if err := h.writeIPC("reactions", rf); err != nil {
+		return "", err
+	}
+	return `{"ok":true}`, nil
 }
 
 func (h *toolHandlers) writeIPC(subdir string, v any) error {

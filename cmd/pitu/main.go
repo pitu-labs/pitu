@@ -138,6 +138,11 @@ func main() {
 			// ctx is assigned before w.Watch starts (line ~143), so it is never nil here.
 			mgr.SpawnSubAgent(ctx, af.ChatID, af.Role, af.Prompt)
 		},
+		func(rf ipc.ReactionFile) {
+			if err := sender.ReactToMessage(rf.ChatID, rf.MessageID, rf.Emoji); err != nil {
+				log.Printf("pitu: react to message: %v", err)
+			}
+		},
 	)
 
 	// IPC watcher — dynamically registers new container dirs as they start
@@ -183,6 +188,9 @@ func main() {
 			return
 		}
 		chatID := fmt.Sprintf("%d", u.Message.Chat.ID)
+		if err := sender.SendChatAction(chatID, "typing"); err != nil {
+			log.Printf("pitu: sendChatAction: %v", err)
+		}
 		msg := ipc.InboundMessage{
 			ChatID:    chatID,
 			From:      u.Message.From.FirstName,

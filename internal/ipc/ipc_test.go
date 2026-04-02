@@ -21,6 +21,7 @@ func TestRouter_DispatchesMessageFile(t *testing.T) {
 		func(f ipc.TaskFile) {},
 		func(g ipc.GroupFile) {},
 		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
 	)
 
 	msg := ipc.OutboundMessage{ChatID: "123", Text: "reply", Type: "message"}
@@ -41,6 +42,7 @@ func TestRouter_DispatchesMessageFile_WithRoleAndSubAgentID(t *testing.T) {
 		func(f ipc.TaskFile) {},
 		func(g ipc.GroupFile) {},
 		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
 	)
 
 	msg := ipc.OutboundMessage{
@@ -68,6 +70,7 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 		func(f ipc.TaskFile) { gotTask = &f },
 		func(ipc.GroupFile) {},
 		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
 	)
 
 	task := ipc.TaskFile{Action: "create", Name: "daily", Schedule: "0 9 * * *", Prompt: "p", ChatID: "123"}
@@ -82,7 +85,7 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 }
 
 func TestRouter_UnknownSubdir(t *testing.T) {
-        r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {})
+        r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {}, func(ipc.ReactionFile) {})
         err := r.Route("unknown", "/tmp/file.json", "", "")
         assert.Error(t, err)
 }
@@ -93,6 +96,7 @@ func TestRouter_DispatchesAgentFile(t *testing.T) {
 		func(ipc.TaskFile) {},
 		func(ipc.GroupFile) {},
 		func(a ipc.AgentFile) { gotAgent = &a },
+		func(ipc.ReactionFile) {},
 	)
 
 	af := ipc.AgentFile{Action: "spawn", SubAgentID: "uuid-1", Role: "Researcher", Prompt: "find papers", ChatID: "chat-1"}
@@ -122,6 +126,7 @@ func TestWatcher_PicksUpAgentFiles(t *testing.T) {
 			received = append(received, a)
 			mu.Unlock()
 		},
+		func(ipc.ReactionFile) {},
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -160,6 +165,7 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 		func(ipc.TaskFile) {},
 		func(ipc.GroupFile) {},
 		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
