@@ -28,9 +28,13 @@ func New(dispatch func(chatID, prompt string)) *Scheduler {
 	}
 }
 
-// Add registers a task with the scheduler.
+// Add registers a task with the scheduler. It is idempotent: calling Add
+// for a task ID that is already registered is a no-op.
 func (s *Scheduler) Add(t store.Task) error {
 	if t.Paused {
+		return nil
+	}
+	if _, exists := s.entryIDs.Load(t.ID); exists {
 		return nil
 	}
 	id, err := s.cr.AddFunc(t.Schedule, func() {
