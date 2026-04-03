@@ -114,6 +114,29 @@ bot_token = "tok"
 	assert.Equal(t, "", cfg.Model.Model)
 }
 
+func TestLoad_AllowedChatIDs(t *testing.T) {
+	content := `
+[telegram]
+bot_token        = "tok"
+allowed_chat_ids = [111222333, 444555666]
+`
+	f := writeTempTOML(t, content)
+	cfg, err := config.Load(f)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{111222333, 444555666}, cfg.Telegram.AllowedChatIDs)
+}
+
+func TestLoad_AllowedChatIDsEmpty_IsValid(t *testing.T) {
+	content := `
+[telegram]
+bot_token = "tok"
+`
+	f := writeTempTOML(t, content)
+	cfg, err := config.Load(f)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Telegram.AllowedChatIDs)
+}
+
 func writeTempTOML(t *testing.T, content string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "config.toml")

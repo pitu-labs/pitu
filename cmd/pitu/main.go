@@ -225,6 +225,10 @@ func main() {
 
 	log.Println("pitu: started, polling Telegram...")
 	poller.Poll(ctx, func(u telegram.Update) {
+		if !isAllowed(u.Message.Chat.ID, cfg.Telegram.AllowedChatIDs) {
+			log.Printf("pitu: rejected message from chat %d (not in allowlist)", u.Message.Chat.ID)
+			return
+		}
 		if u.Message.Text == "" {
 			return
 		}
@@ -256,6 +260,20 @@ func main() {
 			}
 		})
 	})
+}
+
+// isAllowed reports whether chatID is permitted to use the bot.
+// If the allowlist is empty, all callers are permitted (backward-compatible default).
+func isAllowed(chatID int64, allowed []int64) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, id := range allowed {
+		if id == chatID {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeSkills copies all discovered skills into a single scratch directory

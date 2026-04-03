@@ -29,7 +29,8 @@ type Config struct {
 }
 
 type TelegramConfig struct {
-	BotToken string `toml:"bot_token"`
+	BotToken       string  `toml:"bot_token"`
+	AllowedChatIDs []int64 `toml:"allowed_chat_ids"`
 }
 
 type ContainerConfig struct {
