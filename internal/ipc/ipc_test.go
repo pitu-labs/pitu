@@ -193,7 +193,7 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 	assert.Equal(t, "watch test", received[0].Text)
 }
 
-func TestRouter_OverridesForgerdChatID(t *testing.T) {
+func TestRouter_OverridesForgedChatID(t *testing.T) {
 	var gotMsg *ipc.OutboundMessage
 	r := ipc.NewRouter(
 		func(m ipc.OutboundMessage) { gotMsg = &m },
@@ -214,4 +214,76 @@ func TestRouter_OverridesForgerdChatID(t *testing.T) {
 	require.NotNil(t, gotMsg)
 	assert.Equal(t, "real-chat", gotMsg.ChatID) // trusted, not forged
 	assert.Equal(t, "sneaky", gotMsg.Text)
+}
+
+func TestRouter_OverridesForgedChatID_Tasks(t *testing.T) {
+	var gotTask *ipc.TaskFile
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(f ipc.TaskFile) { gotTask = &f },
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	tf := ipc.TaskFile{Action: "create", ChatID: "forged-chat", Name: "t"}
+	data, _ := json.Marshal(tf)
+	fpath := filepath.Join(t.TempDir(), "ts.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+	require.NoError(t, r.Route("tasks", fpath, "real-chat", "", ""))
+	require.NotNil(t, gotTask)
+	assert.Equal(t, "real-chat", gotTask.ChatID)
+}
+
+func TestRouter_OverridesForgedChatID_Groups(t *testing.T) {
+	var gotGroup *ipc.GroupFile
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(g ipc.GroupFile) { gotGroup = &g },
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	gf := ipc.GroupFile{ChatID: "forged-chat", Name: "g"}
+	data, _ := json.Marshal(gf)
+	fpath := filepath.Join(t.TempDir(), "ts.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+	require.NoError(t, r.Route("groups", fpath, "real-chat", "", ""))
+	require.NotNil(t, gotGroup)
+	assert.Equal(t, "real-chat", gotGroup.ChatID)
+}
+
+func TestRouter_OverridesForgedChatID_Agents(t *testing.T) {
+	var gotAgent *ipc.AgentFile
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(a ipc.AgentFile) { gotAgent = &a },
+		func(ipc.ReactionFile) {},
+	)
+	af := ipc.AgentFile{Action: "spawn", ChatID: "forged-chat", Role: "Writer"}
+	data, _ := json.Marshal(af)
+	fpath := filepath.Join(t.TempDir(), "ts.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+	require.NoError(t, r.Route("agents", fpath, "real-chat", "", ""))
+	require.NotNil(t, gotAgent)
+	assert.Equal(t, "real-chat", gotAgent.ChatID)
+}
+
+func TestRouter_OverridesForgedChatID_Reactions(t *testing.T) {
+	var gotReaction *ipc.ReactionFile
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(rf ipc.ReactionFile) { gotReaction = &rf },
+	)
+	rf := ipc.ReactionFile{ChatID: "forged-chat", MessageID: 42, Emoji: "👍"}
+	data, _ := json.Marshal(rf)
+	fpath := filepath.Join(t.TempDir(), "ts.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+	require.NoError(t, r.Route("reactions", fpath, "real-chat", "", ""))
+	require.NotNil(t, gotReaction)
+	assert.Equal(t, "real-chat", gotReaction.ChatID)
 }
