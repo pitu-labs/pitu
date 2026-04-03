@@ -39,7 +39,7 @@ type Manager struct {
 	pool       sync.Map // chatID → *Handle
 	subPool    sync.Map // subAgentID -> *SubAgentHandle
 	skillsDisc []skills.Skill
-	watcher    interface{ RegisterDir(string, string, string) error } // ipc.Watcher, accepts nil
+	watcher    interface{ RegisterDir(string, string, string, string) error } // ipc.Watcher, accepts nil
 	onExpire   func(chatID string)
 
 	// Dirs used by all containers
@@ -47,7 +47,7 @@ type Manager struct {
 	dataDir   string // host base path; per-chat subdirs created here
 }
 
-func NewManager(cfg *config.Config, discovered []skills.Skill, w interface{ RegisterDir(string, string, string) error }, onExpire func(string)) *Manager {
+func NewManager(cfg *config.Config, discovered []skills.Skill, w interface{ RegisterDir(string, string, string, string) error }, onExpire func(string)) *Manager {
 	return &Manager{cfg: cfg, skillsDisc: discovered, watcher: w, onExpire: onExpire}
 }
 
@@ -129,7 +129,7 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 
 	// Register the new container's IPC dirs with the watcher
 	if m.watcher != nil {
-		if err := m.watcher.RegisterDir(ipcDir, "", ""); err != nil {
+		if err := m.watcher.RegisterDir(ipcDir, chatID, "", ""); err != nil {
 			log.Printf("container: register ipc dirs for %s: %v", chatID, err)
 		}
 	}
@@ -194,7 +194,7 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 	containerID = containerID[:len(containerID)-1] // trim newline
 
 	if m.watcher != nil {
-		if err := m.watcher.RegisterDir(ipcDir, role, subAgentID); err != nil {
+		if err := m.watcher.RegisterDir(ipcDir, chatID, role, subAgentID); err != nil {
 			log.Printf("container: register ipc dirs for subagent %s: %v", subAgentID, err)
 		}
 	}

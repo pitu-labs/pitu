@@ -11,8 +11,9 @@ import (
 )
 
 type dirMeta struct {
-        role       string
-        subAgentID string
+	chatID     string
+	role       string
+	subAgentID string
 }
 
 type Watcher struct {
@@ -29,20 +30,21 @@ func NewWatcher(r *Router) (*Watcher, error) {
         }
         return &Watcher{router: r, fsWatcher: fw, metas: make(map[string]dirMeta)}, nil
 }
-// RegisterDir adds ipcRootDir/messages/, /tasks/, /groups/, and /agents/ to the watch list.
+// RegisterDir adds ipcRootDir/messages/, /tasks/, /groups/, /agents/, and /reactions/ to the watch list.
+// chatID is the authoritative chat ID for this IPC directory (derived from the filesystem path).
 // Safe to call at any time, including after Watch has started.
-func (w *Watcher) RegisterDir(ipcRootDir, role, subAgentID string) error {
-        for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
-                dir := filepath.Join(ipcRootDir, sub)
-                if err := os.MkdirAll(dir, 0755); err != nil {
-                        return fmt.Errorf("ipc: mkdir %s: %w", dir, err)
-                }
-                if err := w.fsWatcher.Add(dir); err != nil {
-                        return fmt.Errorf("ipc: watch %s: %w", dir, err)
-                }
-                w.metas[dir] = dirMeta{role: role, subAgentID: subAgentID}
-        }
-        return nil
+func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error {
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
+		dir := filepath.Join(ipcRootDir, sub)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("ipc: mkdir %s: %w", dir, err)
+		}
+		if err := w.fsWatcher.Add(dir); err != nil {
+			return fmt.Errorf("ipc: watch %s: %w", dir, err)
+		}
+		w.metas[dir] = dirMeta{chatID: chatID, role: role, subAgentID: subAgentID}
+	}
+	return nil
 }
 // Watch processes fsnotify events until ctx is cancelled.
 func (w *Watcher) Watch(ctx context.Context) {
@@ -61,7 +63,7 @@ func (w *Watcher) Watch(ctx context.Context) {
 			parent := filepath.Dir(event.Name)
 			meta := w.metas[parent]
 			subdir := filepath.Base(parent)
-			if err := w.router.Route(subdir, event.Name, meta.role, meta.subAgentID); err != nil {
+			if err := w.router.Route(subdir, event.Name, meta.chatID, meta.role, meta.subAgentID); err != nil {
 				log.Printf("ipc: route %s: %v", event.Name, err)
 				continue
 			}

@@ -30,8 +30,9 @@ func TestRouter_DispatchesMessageFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-1.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("messages", fpath, "", ""))
+	require.NoError(t, r.Route("messages", fpath, "123", "", ""))
 	require.NotNil(t, gotMsg)
+	assert.Equal(t, "123", gotMsg.ChatID)
 	assert.Equal(t, "reply", gotMsg.Text)
 }
 
@@ -57,7 +58,7 @@ func TestRouter_DispatchesMessageFile_WithRoleAndSubAgentID(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-1.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("messages", fpath, "researcher", "agent-1"))
+	require.NoError(t, r.Route("messages", fpath, "123", "researcher", "agent-1"))
 	require.NotNil(t, gotMsg)
 	assert.Equal(t, "researcher", gotMsg.Role)
 	assert.Equal(t, "agent-1", gotMsg.SubAgentID)
@@ -79,14 +80,15 @@ func TestRouter_DispatchesTaskFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-2.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("tasks", fpath, "", ""))
+	require.NoError(t, r.Route("tasks", fpath, "123", "", ""))
 	require.NotNil(t, gotTask)
+	assert.Equal(t, "123", gotTask.ChatID)
 	assert.Equal(t, "daily", gotTask.Name)
 }
 
 func TestRouter_UnknownSubdir(t *testing.T) {
         r := ipc.NewRouter(func(ipc.OutboundMessage) {}, func(ipc.TaskFile) {}, func(ipc.GroupFile) {}, func(ipc.AgentFile) {}, func(ipc.ReactionFile) {})
-        err := r.Route("unknown", "/tmp/file.json", "", "")
+	err := r.Route("unknown", "/tmp/file.json", "x", "", "")
         assert.Error(t, err)
 }
 func TestRouter_DispatchesAgentFile(t *testing.T) {
@@ -105,8 +107,9 @@ func TestRouter_DispatchesAgentFile(t *testing.T) {
 	fpath := filepath.Join(tmp, "ts-3.json")
 	require.NoError(t, os.WriteFile(fpath, data, 0644))
 
-	require.NoError(t, r.Route("agents", fpath, "", ""))
+	require.NoError(t, r.Route("agents", fpath, "chat-1", "", ""))
 	require.NotNil(t, gotAgent)
+	assert.Equal(t, "chat-1", gotAgent.ChatID)
 	assert.Equal(t, "Researcher", gotAgent.Role)
 	assert.Equal(t, "find papers", gotAgent.Prompt)
 }
@@ -134,7 +137,7 @@ func TestWatcher_PicksUpAgentFiles(t *testing.T) {
 
 	w, err := ipc.NewWatcher(r)
 	require.NoError(t, err)
-	require.NoError(t, w.RegisterDir(tmp, "", ""))
+	require.NoError(t, w.RegisterDir(tmp, "chat-1", "", ""))
 	go w.Watch(ctx)
 	time.Sleep(50 * time.Millisecond)
 
@@ -173,7 +176,7 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 
 	w, err := ipc.NewWatcher(r)
 	require.NoError(t, err)
-	require.NoError(t, w.RegisterDir(tmp, "", ""))
+	require.NoError(t, w.RegisterDir(tmp, "chat-99", "", ""))
 	go w.Watch(ctx)
 	time.Sleep(50 * time.Millisecond) // let watcher start
 
@@ -186,5 +189,29 @@ func TestWatcher_PicksUpNewFiles(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	require.Len(t, received, 1)
+	assert.Equal(t, "chat-99", received[0].ChatID)
 	assert.Equal(t, "watch test", received[0].Text)
+}
+
+func TestRouter_OverridesForgerdChatID(t *testing.T) {
+	var gotMsg *ipc.OutboundMessage
+	r := ipc.NewRouter(
+		func(m ipc.OutboundMessage) { gotMsg = &m },
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+
+	// Container forges a different chat_id in the JSON body
+	msg := ipc.OutboundMessage{ChatID: "other-chat", Text: "sneaky", Type: "message"}
+	data, _ := json.Marshal(msg)
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "ts-forge.json")
+	require.NoError(t, os.WriteFile(fpath, data, 0644))
+
+	require.NoError(t, r.Route("messages", fpath, "real-chat", "", ""))
+	require.NotNil(t, gotMsg)
+	assert.Equal(t, "real-chat", gotMsg.ChatID) // trusted, not forged
+	assert.Equal(t, "sneaky", gotMsg.Text)
 }
