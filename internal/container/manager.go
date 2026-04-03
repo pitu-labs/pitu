@@ -95,7 +95,6 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		return nil, fmt.Errorf("mkdir opencode: %w", err)
 	}
 
-	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
 	ef, err := os.CreateTemp("", "pitu-opencode-env-*")
 	if err != nil {
 		return nil, fmt.Errorf("container: create env file: %w", err)
@@ -108,9 +107,9 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		ef.Close()
 		return nil, fmt.Errorf("container: chmod env file: %w", err)
 	}
-	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
+	if err := m.writeEnvFile(ef, chatID); err != nil {
 		ef.Close()
-		return nil, fmt.Errorf("container: write env file: %w", err)
+		return nil, err
 	}
 	if err := ef.Close(); err != nil {
 		return nil, fmt.Errorf("container: close env file: %w", err)
@@ -163,7 +162,6 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 		return nil, fmt.Errorf("write system skill: %w", err)
 	}
 
-	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
 	ef, err := os.CreateTemp("", "pitu-subagent-env-*")
 	if err != nil {
 		return nil, fmt.Errorf("container: create env file: %w", err)
@@ -174,9 +172,9 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 		ef.Close()
 		return nil, fmt.Errorf("container: chmod env file: %w", err)
 	}
-	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
+	if err := m.writeEnvFile(ef, chatID); err != nil {
 		ef.Close()
-		return nil, fmt.Errorf("container: write env file: %w", err)
+		return nil, err
 	}
 	if err := ef.Close(); err != nil {
 		return nil, fmt.Errorf("container: close env file: %w", err)
@@ -339,4 +337,21 @@ func (m *Manager) ttl() time.Duration {
 		return 5 * time.Minute
 	}
 	return d
+}
+
+// writeEnvFile writes OPENCODE_CONFIG_CONTENT and, when an API key is configured,
+// the provider-specific key env var (e.g. ANTHROPIC_API_KEY) to ef.
+// Keeping the key out of the config JSON reduces the blast radius of config leaks.
+func (m *Manager) writeEnvFile(ef *os.File, chatID string) error {
+	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
+	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
+		return fmt.Errorf("container: write opencode config: %w", err)
+	}
+	if m.cfg.Model.APIKey != "" {
+		keyVar := APIKeyEnvVar(m.cfg.Model.Provider)
+		if _, err := fmt.Fprintf(ef, "%s=%s\n", keyVar, m.cfg.Model.APIKey); err != nil {
+			return fmt.Errorf("container: write api key env var: %w", err)
+		}
+	}
+	return nil
 }

@@ -43,9 +43,7 @@ func GenerateOpenCodeConfig(chatID string, model config.ModelConfig) string {
 // Providers with a BaseURL use @ai-sdk/openai-compatible (covers Ollama and custom endpoints).
 func buildProviderBlock(model config.ModelConfig) map[string]any {
 	opts := map[string]any{}
-	if model.APIKey != "" {
-		opts["apiKey"] = model.APIKey
-	}
+	// API key is passed via provider-specific env var, not embedded in config JSON
 	if model.BaseURL != "" {
 		opts["baseURL"] = model.BaseURL
 	}
@@ -57,4 +55,16 @@ func buildProviderBlock(model config.ModelConfig) map[string]any {
 	}
 
 	return map[string]any{model.Provider: providerCfg}
+}
+
+// APIKeyEnvVar returns the standard environment variable name for the given
+// provider's API key. The key is written to the container's env file separately
+// from the OpenCode config JSON so it does not appear in config blobs.
+func APIKeyEnvVar(provider string) string {
+	switch provider {
+	case "openai":
+		return "OPENAI_API_KEY"
+	default: // "anthropic" and openai-compatible providers
+		return "ANTHROPIC_API_KEY"
+	}
 }

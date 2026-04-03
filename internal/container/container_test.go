@@ -150,8 +150,10 @@ func TestGenerateOpenCodeConfig_InjectsAnthropicProvider(t *testing.T) {
 	require.True(t, ok, "provider.anthropic must be an object")
 	opts, ok := anthropic["options"].(map[string]any)
 	require.True(t, ok, "provider.anthropic.options must be an object")
-	assert.Equal(t, "sk-ant-test", opts["apiKey"])
-	// No npm field for anthropic (native provider)
+	// API key must NOT be in the config JSON — it is passed via env var
+	_, hasAPIKey := opts["apiKey"]
+	assert.False(t, hasAPIKey, "apiKey must not appear in config JSON")
+	// No npm field for native anthropic provider
 	_, hasNPM := anthropic["npm"]
 	assert.False(t, hasNPM)
 }
@@ -222,4 +224,22 @@ func TestManager_BuildRunArgs_UsesEnvFile(t *testing.T) {
 	assert.Contains(t, joined, "/tmp/env-file")
 	assert.NotContains(t, joined, "sk-ant-secret")
 	assert.NotContains(t, joined, "OPENCODE_CONFIG_CONTENT")
+}
+
+func TestGenerateOpenCodeConfig_DoesNotEmbedAPIKey(t *testing.T) {
+	m := config.ModelConfig{
+		Provider: "anthropic",
+		Model:    "claude-sonnet-4-5",
+		APIKey:   "sk-ant-secret-key",
+	}
+	cfg := container.GenerateOpenCodeConfig("chat-1", m)
+	assert.NotContains(t, cfg, "sk-ant-secret-key",
+		"API key must not appear in config JSON")
+}
+
+func TestAPIKeyEnvVar(t *testing.T) {
+	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar("anthropic"))
+	assert.Equal(t, "OPENAI_API_KEY", container.APIKeyEnvVar("openai"))
+	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar("ollama"))
+	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar(""))
 }
