@@ -47,6 +47,10 @@ func TestWriteInputFile_CreatesCorrectFile(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &got))
 	assert.Equal(t, "test message", got.Text)
 	assert.Equal(t, "m42", got.MessageID)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm(), "input file must be owner-read/write only")
 }
 
 func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {

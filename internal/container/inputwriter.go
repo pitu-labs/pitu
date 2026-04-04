@@ -14,7 +14,7 @@ import (
 // Returns the full path of the written file.
 func WriteInputFile(ipcRootDir string, msg ipc.InboundMessage) (string, error) {
 	dir := filepath.Join(ipcRootDir, "input")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("container: mkdir input: %w", err)
 	}
 	ts := time.Now().UnixNano()
@@ -24,7 +24,7 @@ func WriteInputFile(ipcRootDir string, msg ipc.InboundMessage) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("container: marshal message: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return "", fmt.Errorf("container: write input file: %w", err)
 	}
 	return path, nil
