@@ -56,6 +56,21 @@ type ModelConfig struct {
 	BaseURL  string `toml:"base_url"` // required for Ollama and OpenAI-compatible endpoints
 }
 
+// CheckPermissions returns an error if the config file at path is readable by
+// group or world (i.e. mode & 0o077 != 0). Call after Load and log the result
+// as a warning — the bot token must not be world-readable.
+func CheckPermissions(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("config: stat %s: %w", path, err)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("config file %s has permissions %04o; tighten with: chmod 600 %s",
+			path, info.Mode().Perm(), path)
+	}
+	return nil
+}
+
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
 	cfg.Container.TTL = "5m"

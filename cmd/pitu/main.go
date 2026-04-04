@@ -36,6 +36,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("pitu: config: %v", err)
 	}
+	if err := config.CheckPermissions(cfgPath); err != nil {
+		log.Printf("pitu: security warning: %v", err)
+	}
 
 	var rateLimitInterval time.Duration
 	if cfg.Telegram.RateLimit != "" {

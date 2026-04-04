@@ -143,3 +143,29 @@ func writeTempTOML(t *testing.T, content string) string {
 	require.NoError(t, os.WriteFile(f, []byte(content), 0600))
 	return f
 }
+
+func TestCheckPermissions_PassesOn0600(t *testing.T) {
+	f := writeTempTOML(t, "[telegram]\nbot_token = \"tok\"\n")
+	require.NoError(t, os.Chmod(f, 0600))
+	assert.NoError(t, config.CheckPermissions(f))
+}
+
+func TestCheckPermissions_ErrorOnGroupReadable(t *testing.T) {
+	f := writeTempTOML(t, "[telegram]\nbot_token = \"tok\"\n")
+	require.NoError(t, os.Chmod(f, 0640))
+	err := config.CheckPermissions(f)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "0640")
+}
+
+func TestCheckPermissions_ErrorOnWorldReadable(t *testing.T) {
+	f := writeTempTOML(t, "[telegram]\nbot_token = \"tok\"\n")
+	require.NoError(t, os.Chmod(f, 0644))
+	err := config.CheckPermissions(f)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "0644")
+}
+
+func TestCheckPermissions_ErrorOnMissingFile(t *testing.T) {
+	assert.Error(t, config.CheckPermissions("/nonexistent/path/config.toml"))
+}
