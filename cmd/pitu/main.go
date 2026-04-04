@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pitu-dev/pitu/internal/config"
+	"github.com/pitu-dev/pitu/internal/ratelimit"
 	"github.com/pitu-dev/pitu/internal/container"
 	"github.com/pitu-dev/pitu/internal/ipc"
 	"github.com/pitu-dev/pitu/internal/queue"
@@ -35,6 +36,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("pitu: config: %v", err)
 	}
+
+	var rateLimitInterval time.Duration
+	if cfg.Telegram.RateLimit != "" {
+		d, err := time.ParseDuration(cfg.Telegram.RateLimit)
+		if err != nil {
+			log.Fatalf("pitu: config: invalid rate_limit %q: %v", cfg.Telegram.RateLimit, err)
+		}
+		rateLimitInterval = d
+	}
+	limiter := ratelimit.New(rateLimitInterval)
 
 	dbPath := cfg.DB.Path
 	if dbPath == "" {
@@ -229,10 +240,14 @@ func main() {
 			log.Printf("pitu: rejected message from chat %d (not in allowlist)", u.Message.Chat.ID)
 			return
 		}
+		chatID := fmt.Sprintf("%d", u.Message.Chat.ID)
+		if !limiter.Allow(chatID) {
+			log.Printf("pitu: rate-limited message from chat %s", chatID)
+			return
+		}
 		if u.Message.Text == "" {
 			return
 		}
-		chatID := fmt.Sprintf("%d", u.Message.Chat.ID)
 		if err := sender.SendChatAction(chatID, "typing"); err != nil {
 			log.Printf("pitu: sendChatAction: %v", err)
 		}

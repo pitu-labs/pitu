@@ -4,6 +4,9 @@ bot_token        = "YOUR_BOT_TOKEN_HERE"
 # Find your chat ID by messaging @userinfobot on Telegram.
 # If empty, ALL senders are accepted — set this in production.
 allowed_chat_ids = []   # e.g. [123456789, 987654321]
+# Minimum time between accepted messages per chat. Messages arriving sooner are
+# silently dropped. Use Go duration syntax: "5s", "1m", "500ms". Empty = no limit.
+rate_limit       = "5s"
 
 [container]
 image          = "localhost/pitu-agent:latest"
