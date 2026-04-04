@@ -69,3 +69,68 @@ func TestPoller_ReceivesUpdates(t *testing.T) {
 	assert.Equal(t, "hi", updates[0].Message.Text)
 	assert.Equal(t, int64(999), updates[0].Message.Chat.ID)
 }
+
+func TestPoller_IgnoresUpdatesOn429(t *testing.T) {
+	// Server always returns 429 with Retry-After: 1 — context expires before retry.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	p := telegram.NewPoller("TOKEN", srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	var received []telegram.Update
+	p.Poll(ctx, func(u telegram.Update) { received = append(received, u) })
+	assert.Empty(t, received, "no updates should be delivered on 429 responses")
+}
+
+func TestPoller_RetriesAfter429(t *testing.T) {
+	// First call returns 429 with Retry-After: 0 (immediate retry).
+	// Second call returns a real update. Poll must deliver it.
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true,"result":[{"update_id":42,"message":{"message_id":1,"from":{"id":1,"first_name":"Bob"},"chat":{"id":1},"text":"retry","date":1}}]}`))
+	}))
+	defer srv.Close()
+
+	p := telegram.NewPoller("TOKEN", srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	var received []telegram.Update
+	p.Poll(ctx, func(u telegram.Update) { received = append(received, u) })
+	assert.GreaterOrEqual(t, callCount, 2, "Poll must retry after a 429")
+}
+
+func TestPoller_RetriesAfter5xx(t *testing.T) {
+	// First call returns 500. Second call returns empty updates.
+	// Poll must retry (callCount >= 2). Uses 3s timeout to cover the 2s backoff.
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true,"result":[]}`))
+	}))
+	defer srv.Close()
+
+	p := telegram.NewPoller("TOKEN", srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	p.Poll(ctx, func(telegram.Update) {})
+	assert.GreaterOrEqual(t, callCount, 2, "Poll must retry after a 5xx")
+}
