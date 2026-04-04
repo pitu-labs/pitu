@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -326,6 +327,8 @@ func (m *Manager) BuildSpawnArgs(containerID, role, prompt string) []string {
 
 // SpawnSubAgent runs a one-shot OpenCode sub-agent inside a fresh isolated container.
 func (m *Manager) SpawnSubAgent(ctx context.Context, chatID, role, prompt string) {
+	role = SanitizeRole(role)
+	prompt = SanitizePrompt(prompt)
 	subAgentID := uuid.NewString()
 	go func() {
 		handle, err := m.startSubAgentContainer(ctx, chatID, role, subAgentID)
@@ -347,6 +350,35 @@ func (m *Manager) ttl() time.Duration {
 		return 5 * time.Minute
 	}
 	return d
+}
+
+// SanitizeRole strips characters outside [a-zA-Z0-9 _-], caps the result at
+// 64 runes, and returns "agent" if nothing survives. Exported for testability.
+func SanitizeRole(role string) string {
+	var b strings.Builder
+	for _, r := range role {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == ' ' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	runes := []rune(b.String())
+	if len(runes) > 64 {
+		runes = runes[:64]
+	}
+	if len(runes) == 0 {
+		return "agent"
+	}
+	return string(runes)
+}
+
+// SanitizePrompt caps prompt at 4096 runes. Exported for testability.
+func SanitizePrompt(prompt string) string {
+	runes := []rune(prompt)
+	if len(runes) > 4096 {
+		return string(runes[:4096])
+	}
+	return prompt
 }
 
 // writeEnvFile writes OPENCODE_CONFIG_CONTENT and, when an API key is configured,

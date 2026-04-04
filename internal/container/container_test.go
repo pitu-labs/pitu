@@ -254,3 +254,32 @@ func TestAPIKeyEnvVar(t *testing.T) {
 	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar("ollama"))
 	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar(""))
 }
+
+func TestSanitizeRole_AllowsSafeChars(t *testing.T) {
+	assert.Equal(t, "My Agent-1_2", container.SanitizeRole("My Agent-1_2"))
+}
+
+func TestSanitizeRole_StripsInjectionChars(t *testing.T) {
+	assert.Equal(t, "BadAgent", container.SanitizeRole("Bad\nAgent\x00"))
+}
+
+func TestSanitizeRole_CapsAt64Runes(t *testing.T) {
+	long := strings.Repeat("a", 100)
+	result := container.SanitizeRole(long)
+	assert.Equal(t, 64, len([]rune(result)))
+}
+
+func TestSanitizeRole_EmptyInputReturnsAgent(t *testing.T) {
+	assert.Equal(t, "agent", container.SanitizeRole(""))
+	assert.Equal(t, "agent", container.SanitizeRole("!@#$%^&*"))
+}
+
+func TestSanitizePrompt_TruncatesOverLimit(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	result := container.SanitizePrompt(long)
+	assert.Equal(t, 4096, len([]rune(result)))
+}
+
+func TestSanitizePrompt_PassesUnderLimit(t *testing.T) {
+	assert.Equal(t, "hello world", container.SanitizePrompt("hello world"))
+}
