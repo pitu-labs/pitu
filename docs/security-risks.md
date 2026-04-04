@@ -3,7 +3,7 @@
 **Date:** 2026-04-03  
 **Scope:** Full codebase — `cmd/`, `internal/`, `go.mod`  
 **Reviewer:** Claude Code (claude-sonnet-4-6)  
-**Last updated:** 2026-04-03 — M2, M3, M4 remediated; M2 review fix (pre-existing dir permissions); M3 boundary test added; M1 fixed (0644→0600, dir 0755→0700); M5 fixed (per-chat rate limiter, configurable via `[telegram] rate_limit`)
+**Last updated:** 2026-04-04 — L1 fixed (role/prompt sanitization in SpawnSubAgent); L2 fixed (config permissions warning at startup); L3 fixed (HTTP status check + 429/5xx backoff in poller); L4 closed (Go 1.25.0 is a valid released version)
 
 ---
 
@@ -19,10 +19,10 @@
 | M3 | **MEDIUM** | ✅ Fixed | `ipc/router.go:23` | Unbounded IPC file read (potential OOM/DoS) |
 | M4 | **MEDIUM** | ✅ Fixed | `container/manager.go:77-82` | TOCTOU in container pool → container leak |
 | M5 | **MEDIUM** | ✅ Fixed | `cmd/pitu/main.go` | No per-chat rate limiting |
-| L1 | **LOW** | 🔴 Open | `container/manager.go:160,309` | Prompt injection via `role`/`prompt` fields |
-| L2 | **LOW** | 🔴 Open | `config/config.go` | Bot token stored in plaintext config |
-| L3 | **LOW** | 🔴 Open | `telegram/poller.go` | HTTP status not checked before decoding |
-| L4 | **LOW** | 🔴 Open | `go.mod:3` | `go 1.25.0` is a non-existent Go version |
+| L1 | **LOW** | ✅ Fixed | `container/manager.go:160,309` | Prompt injection via `role`/`prompt` fields |
+| L2 | **LOW** | ✅ Fixed | `config/config.go` | Bot token stored in plaintext config |
+| L3 | **LOW** | ✅ Fixed | `telegram/poller.go` | HTTP status not checked before decoding |
+| L4 | **LOW** | ✅ Closed | `go.mod:3` | `go 1.25.0` declared — Go 1.25 released; version is valid |
 
 ---
 
@@ -178,6 +178,8 @@ A container-side agent could exploit this to inject instructions into a sub-agen
 
 **Remediation:** Sanitize or length-limit `role` (e.g. alphanumeric + spaces only, max 64 chars). Treat it as an opaque identifier, not freeform text, when writing to skill files.
 
+**Remediation applied:** `role` is sanitized to `[a-zA-Z0-9 _-]`, capped at 64 runes, with `"agent"` fallback. `prompt` is capped at 4096 runes. Both are applied at `SpawnSubAgent` entry before any use.
+
 ---
 
 ### L2 — Bot token stored in plaintext config
@@ -187,6 +189,8 @@ A container-side agent could exploit this to inject instructions into a sub-agen
 `bot_token` is stored as a plain string in `~/.pitu/config.toml`. The harness does not verify the file's permissions before reading it, so a misconfigured system (e.g. world-readable home directory, dotfile sync) could expose the token.
 
 **Remediation:** Document that the config file must be `chmod 600`. Optionally, add a startup check that warns or aborts if the file's permissions are too permissive.
+
+**Remediation applied:** `config.CheckPermissions` checks `mode & 0o077 != 0` at startup and logs a non-fatal warning naming the offending permissions and the `chmod 600` command to fix them.
 
 ---
 
@@ -198,15 +202,13 @@ A container-side agent could exploit this to inject instructions into a sub-agen
 
 **Remediation:** Check `resp.StatusCode` before decoding. Implement exponential back-off on `429` and `5xx` responses, respecting the `Retry-After` header when present.
 
+**Remediation applied:** `getUpdates` checks `resp.StatusCode` before decoding. 429 returns a `retryError` carrying the `Retry-After` duration (default 10 s); 5xx and other non-200 return a plain error. `Poll` uses `errors.As` to detect `retryError` and applies the appropriate backoff.
+
 ---
 
 ### L4 — `go 1.25.0` is a non-existent Go version
 
-**File:** `go.mod:3`
-
-Go 1.25 does not exist as of the review date. Newer `go` toolchains that honor the `go` directive for toolchain selection may attempt to download a non-existent version, causing build failures in CI or fresh environments.
-
-**Remediation:** Change the directive to the actual minimum Go version required (e.g. `go 1.23.0`).
+> ✅ **Closed** — Go 1.25.0 was released after the review date. The installed toolchain is `go1.25.0`; the directive in `go.mod` is correct. No change needed.
 
 ---
 
