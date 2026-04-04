@@ -226,6 +226,13 @@ func TestManager_BuildRunArgs_UsesEnvFile(t *testing.T) {
 	assert.NotContains(t, joined, "OPENCODE_CONFIG_CONTENT")
 }
 
+// TestEnsureContainer_NoDuplicateStart would ideally assert that concurrent
+// Dispatch calls for the same chatID result in exactly one startContainer
+// invocation. This cannot be unit-tested here because startContainer shells out
+// to `podman run`, which is unavailable in CI. The fix (startMu double-checked
+// lock in manager.go) is verified by code inspection and can be validated with
+// `go test -race` against a live Podman environment.
+
 func TestGenerateOpenCodeConfig_DoesNotEmbedAPIKey(t *testing.T) {
 	m := config.ModelConfig{
 		Provider: "anthropic",

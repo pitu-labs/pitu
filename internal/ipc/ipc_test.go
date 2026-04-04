@@ -270,6 +270,90 @@ func TestRouter_OverridesForgedChatID_Agents(t *testing.T) {
 	assert.Equal(t, "real-chat", gotAgent.ChatID)
 }
 
+func TestRouter_RejectsOversizedFile(t *testing.T) {
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "huge.json")
+	// Write a file just over the 1 MB limit.
+	require.NoError(t, os.WriteFile(fpath, make([]byte, 1<<20+1), 0600))
+	err := r.Route("messages", fpath, "chat-1", "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too large")
+}
+
+func TestRouter_AcceptsFileAtSizeLimit(t *testing.T) {
+	// A file of exactly 1 MB must NOT be rejected — the guard is strictly >.
+	// It will fail JSON decode (zeroed bytes ≠ valid JSON), but that is a different
+	// error; the important thing is the size check passes.
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "at-limit.json")
+	require.NoError(t, os.WriteFile(fpath, make([]byte, 1<<20), 0600))
+	err := r.Route("messages", fpath, "chat-1", "", "")
+	require.Error(t, err) // JSON decode will fail, but…
+	assert.NotContains(t, err.Error(), "too large", "file at exactly the limit must not be rejected for size")
+}
+
+func TestWatcher_RegisterDir_CreatesPrivateSubdirs(t *testing.T) {
+	tmp := t.TempDir()
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	w, err := ipc.NewWatcher(r)
+	require.NoError(t, err)
+	require.NoError(t, w.RegisterDir(tmp, "chat-perm", "", ""))
+
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
+		info, err := os.Stat(filepath.Join(tmp, sub))
+		require.NoError(t, err, "subdir %s must exist", sub)
+		perm := info.Mode().Perm()
+		assert.Equal(t, os.FileMode(0700), perm, "subdir %s must be 0700, got %04o", sub, perm)
+	}
+}
+
+func TestWatcher_RegisterDir_RemediatesExistingLoosePerms(t *testing.T) {
+	// Simulate an existing deployment where IPC subdirs were created with 0755.
+	// RegisterDir must tighten them to 0700 even when MkdirAll is a no-op.
+	tmp := t.TempDir()
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmp, sub), 0755))
+	}
+
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	w, err := ipc.NewWatcher(r)
+	require.NoError(t, err)
+	require.NoError(t, w.RegisterDir(tmp, "chat-upgrade", "", ""))
+
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
+		info, err := os.Stat(filepath.Join(tmp, sub))
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0700), info.Mode().Perm(),
+			"pre-existing subdir %s must be tightened to 0700", sub)
+	}
+}
+
 func TestRouter_OverridesForgedChatID_Reactions(t *testing.T) {
 	var gotReaction *ipc.ReactionFile
 	r := ipc.NewRouter(

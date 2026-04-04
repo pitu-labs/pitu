@@ -41,8 +41,13 @@ func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error
 	}
 	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
 		dir := filepath.Join(ipcRootDir, sub)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("ipc: mkdir %s: %w", dir, err)
+		}
+		// MkdirAll only sets permissions on newly created dirs; chmod ensures
+		// pre-existing dirs (e.g. from a previous run with 0755) are tightened too.
+		if err := os.Chmod(dir, 0700); err != nil {
+			return fmt.Errorf("ipc: chmod %s: %w", dir, err)
 		}
 		if err := w.fsWatcher.Add(dir); err != nil {
 			return fmt.Errorf("ipc: watch %s: %w", dir, err)

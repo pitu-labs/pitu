@@ -42,6 +42,8 @@ type Manager struct {
 	watcher    interface{ RegisterDir(string, string, string, string) error } // ipc.Watcher, accepts nil
 	onExpire   func(chatID string)
 
+	startMu sync.Mutex // serialises startContainer; prevents duplicate starts on concurrent messages
+
 	// Dirs used by all containers
 	skillsDir string // host path for /workspace/skills
 	dataDir   string // host base path; per-chat subdirs created here
@@ -75,6 +77,14 @@ func (m *Manager) Dispatch(ctx context.Context, chatID string, msg ipc.InboundMe
 }
 
 func (m *Manager) ensureContainer(ctx context.Context, chatID string) (*Handle, error) {
+	// Fast path: container already warm — no lock needed.
+	if v, ok := m.pool.Load(chatID); ok {
+		return v.(*Handle), nil
+	}
+	// Slow path: serialise to prevent duplicate starts for the same chatID.
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+	// Re-check: another goroutine may have started it while we waited for the lock.
 	if v, ok := m.pool.Load(chatID); ok {
 		return v.(*Handle), nil
 	}
