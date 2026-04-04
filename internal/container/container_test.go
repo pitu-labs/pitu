@@ -251,6 +251,7 @@ func TestGenerateOpenCodeConfig_DoesNotEmbedAPIKey(t *testing.T) {
 func TestAPIKeyEnvVar(t *testing.T) {
 	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar("anthropic"))
 	assert.Equal(t, "OPENAI_API_KEY", container.APIKeyEnvVar("openai"))
+	assert.Equal(t, "OPENROUTER_API_KEY", container.APIKeyEnvVar("openrouter"))
 	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar("ollama"))
 	assert.Equal(t, "ANTHROPIC_API_KEY", container.APIKeyEnvVar(""))
 }

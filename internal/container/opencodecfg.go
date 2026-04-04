@@ -64,6 +64,8 @@ func APIKeyEnvVar(provider string) string {
 	switch provider {
 	case "openai":
 		return "OPENAI_API_KEY"
+	case "openrouter":
+		return "OPENROUTER_API_KEY"
 	default: // "anthropic" and openai-compatible providers
 		return "ANTHROPIC_API_KEY"
 	}
