@@ -3,7 +3,7 @@
 **Date:** 2026-04-03  
 **Scope:** Full codebase — `cmd/`, `internal/`, `go.mod`  
 **Reviewer:** Claude Code (claude-sonnet-4-6)  
-**Last updated:** 2026-04-03 — M2, M3, M4 remediated; M2 review fix (pre-existing dir permissions); M3 boundary test added
+**Last updated:** 2026-04-03 — M2, M3, M4 remediated; M2 review fix (pre-existing dir permissions); M3 boundary test added; M1 fixed (0644→0600, dir 0755→0700); M5 fixed (per-chat rate limiter, configurable via `[telegram] rate_limit`)
 
 ---
 
@@ -14,11 +14,11 @@
 | H1 | **HIGH** | ✅ Fixed | `ipc/router.go`, `cmd/pitu/main.go` | Cross-chat injection via forged `chat_id` in IPC JSON |
 | H2 | **HIGH** | ✅ Fixed | `cmd/pitu/main.go` | No Telegram sender authorization (open bot) |
 | H3 | **HIGH** | ⚠️ Mitigated | `container/opencodecfg.go`, `container/manager.go` | API key exposed in container environment |
-| M1 | **MEDIUM** | 🔴 Open | `container/inputwriter.go:27` | Input file world-readable (0644 → 0600) |
+| M1 | **MEDIUM** | ✅ Fixed | `container/inputwriter.go:27` | Input file world-readable (0644 → 0600) |
 | M2 | **MEDIUM** | ✅ Fixed | `ipc/watcher.go:44` | IPC directories world-traversable (0755 → 0700) |
 | M3 | **MEDIUM** | ✅ Fixed | `ipc/router.go:23` | Unbounded IPC file read (potential OOM/DoS) |
 | M4 | **MEDIUM** | ✅ Fixed | `container/manager.go:77-82` | TOCTOU in container pool → container leak |
-| M5 | **MEDIUM** | 🔴 Open | `cmd/pitu/main.go` | No per-chat rate limiting |
+| M5 | **MEDIUM** | ✅ Fixed | `cmd/pitu/main.go` | No per-chat rate limiting |
 | L1 | **LOW** | 🔴 Open | `container/manager.go:160,309` | Prompt injection via `role`/`prompt` fields |
 | L2 | **LOW** | 🔴 Open | `config/config.go` | Bot token stored in plaintext config |
 | L3 | **LOW** | 🔴 Open | `telegram/poller.go` | HTTP status not checked before decoding |
@@ -78,6 +78,8 @@ The model API key is embedded in `OPENCODE_CONFIG_CONTENT` (a JSON blob) and inj
 
 ### M1 — Input file world-readable (0644)
 
+> ✅ **Fixed** — commit `c6fc9ac`
+
 **File:** `internal/container/inputwriter.go:27`
 
 ```go
@@ -87,6 +89,8 @@ os.WriteFile(path, data, 0644)
 Inbound Telegram messages (user text and metadata) are written to host disk with `0644`, making them readable by any local process running as any user on the host.
 
 **Remediation:** Change permission to `0600`.
+
+**Remediation applied:** Permission changed to `0600` for the file and `0700` for the `input/` directory. `TestWriteInputFile_CreatesCorrectFile` now asserts `info.Mode().Perm() == 0600`.
 
 ---
 
@@ -147,11 +151,15 @@ Two concurrent messages for the same `chatID` can both find an empty pool entry 
 
 ### M5 — No per-chat rate limiting
 
+> ✅ **Fixed** — commits `8c6af04`, `cb00425`
+
 **File:** `cmd/pitu/main.go:227`
 
 The polling loop dispatches every incoming message to the queue with no rate limiting per chat or per user. A single user can flood the queue, consuming the global concurrency cap (`max_concurrent`) and starving all other chats.
 
 **Remediation:** Track per-chat message timestamps and drop or defer messages that exceed a configurable rate threshold (e.g. 1 message per 5 seconds per chat).
+
+**Remediation applied:** New `internal/ratelimit` package implements a per-chat fixed-interval limiter. `[telegram] rate_limit` in `config.toml` sets the minimum time between accepted messages (e.g. `"5s"`). Empty string or omitted key disables limiting (backward-compatible). Messages dropped within the interval are logged and silently discarded — no reply is sent to the user.
 
 ---
 
