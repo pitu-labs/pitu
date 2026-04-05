@@ -196,6 +196,18 @@ func TestGenerateOpenCodeConfig_EmptyModelOmitsProviderAndModel(t *testing.T) {
 	assert.False(t, hasProvider, "provider key must be absent when ModelConfig is empty")
 }
 
+func TestGeneratePiMonoConfig_CallsGenerateOpenCodeConfig(t *testing.T) {
+	chatID := "chat-pimono"
+	mcfg := config.ModelConfig{
+		Provider: "anthropic",
+		Model:    "claude-3-5-sonnet",
+	}
+	cfg := container.GeneratePiMonoConfig(chatID, mcfg)
+	assert.Contains(t, cfg, chatID)
+	assert.Contains(t, cfg, "pitu-mcp")
+	assert.Contains(t, cfg, "anthropic/claude-3-5-sonnet")
+}
+
 func TestManager_BuildRunArgs_InjectsModelWhenConfigured(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Container.Image = "pitu-agent:test"

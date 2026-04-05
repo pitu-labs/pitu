@@ -38,6 +38,11 @@ func GenerateOpenCodeConfig(chatID string, model config.ModelConfig) string {
 	return string(data)
 }
 
+// GeneratePiMonoConfig returns the JSON string for PI_CONFIG_CONTENT.
+func GeneratePiMonoConfig(chatID string, model config.ModelConfig) string {
+	return GenerateOpenCodeConfig(chatID, model)
+}
+
 // buildProviderBlock constructs the OpenCode provider config object for the given model.
 // Built-in providers (anthropic, openai) use native options only.
 // Providers with a BaseURL use @ai-sdk/openai-compatible (covers Ollama and custom endpoints).

@@ -394,9 +394,19 @@ func SanitizePrompt(prompt string) string {
 // the provider-specific key env var (e.g. ANTHROPIC_API_KEY) to ef.
 // Keeping the key out of the config JSON reduces the blast radius of config leaks.
 func (m *Manager) writeEnvFile(ef *os.File, chatID string) error {
-	opencodeCfg := GenerateOpenCodeConfig(chatID, m.cfg.Model)
-	if _, err := fmt.Fprintf(ef, "OPENCODE_CONFIG_CONTENT=%s\n", opencodeCfg); err != nil {
-		return fmt.Errorf("container: write opencode config: %w", err)
+	var configKey string
+	var configContent string
+
+	if m.cfg.Container.Runtime == "pimono" {
+		configKey = "PI_CONFIG_CONTENT"
+		configContent = GeneratePiMonoConfig(chatID, m.cfg.Model)
+	} else {
+		configKey = "OPENCODE_CONFIG_CONTENT"
+		configContent = GenerateOpenCodeConfig(chatID, m.cfg.Model)
+	}
+
+	if _, err := fmt.Fprintf(ef, "%s=%s\n", configKey, configContent); err != nil {
+		return fmt.Errorf("container: write config: %w", err)
 	}
 	if m.cfg.Model.APIKey != "" {
 		keyVar := APIKeyEnvVar(m.cfg.Model.Provider)
