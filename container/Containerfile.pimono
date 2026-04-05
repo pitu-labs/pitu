@@ -1,0 +1,27 @@
+# Stage 1: Build pitu-mcp
+FROM golang:1.25-bookworm AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o pitu-mcp ./cmd/pitu-mcp
+
+# Stage 2: Pi-Mono Runtime
+FROM node:20-slim
+WORKDIR /app
+
+# Install basic tools needed by Pi-Mono
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Pi-Mono agent globally
+RUN npm install -g @mariozechner/pi-coding-agent
+
+# Copy the bridge binary
+COPY --from=builder /app/pitu-mcp /usr/local/bin/pitu-mcp
+
+# Workspace setup
+WORKDIR /workspace/memory
+ENTRYPOINT ["sleep", "infinity"]
