@@ -24,4 +24,4 @@ COPY --from=builder /app/pitu-mcp /usr/local/bin/pitu-mcp
 
 # Workspace setup
 WORKDIR /workspace/memory
-ENTRYPOINT ["sleep", "infinity"]
+CMD ["sleep", "infinity"]
