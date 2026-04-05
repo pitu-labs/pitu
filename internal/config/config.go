@@ -39,6 +39,7 @@ type ContainerConfig struct {
 	TTL           string `toml:"ttl"`
 	MaxConcurrent int    `toml:"max_concurrent"`
 	MemoryLimit   string `toml:"memory_limit"`
+	Runtime       string `toml:"runtime"`
 }
 
 type SkillsConfig struct {
@@ -76,6 +77,7 @@ func Load(path string) (*Config, error) {
 	cfg.Container.TTL = "5m"
 	cfg.Container.MaxConcurrent = 5
 	cfg.Container.MemoryLimit = "512m"
+	cfg.Container.Runtime = "opencode"
 
 	if _, err := toml.DecodeFile(path, cfg); err != nil {
 		return nil, fmt.Errorf("config: decode %s: %w", path, err)
