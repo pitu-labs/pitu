@@ -1,4 +1,4 @@
-# Stage 1: Build pitu-mcp
+# Stage 1: Build pitu-mcp (reuse existing logic)
 FROM golang:1.25-bookworm AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -14,6 +14,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     git \
     curl \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Pi-Mono agent globally
@@ -21,6 +22,10 @@ RUN npm install -g @mariozechner/pi-coding-agent
 
 # Copy the bridge binary
 COPY --from=builder /app/pitu-mcp /usr/local/bin/pitu-mcp
+
+# Copy the wrapper script
+COPY container/pitu-pi-wrapper.sh /usr/local/bin/pitu-pi-wrapper
+RUN chmod +x /usr/local/bin/pitu-pi-wrapper
 
 # Workspace setup
 WORKDIR /workspace/memory

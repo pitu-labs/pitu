@@ -321,7 +321,7 @@ func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession b
 // BuildExecArgsPimono returns the podman exec arguments for running Pi-Mono on a message. Public for testability.
 func (m *Manager) BuildExecArgsPimono(containerID, inputPath string) []string {
 	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
-	return []string{"exec", containerID, "pi", "run", "--file", containerPath}
+	return []string{"exec", containerID, "pitu-pi-wrapper", containerPath}
 }
 
 // BuildSpawnArgs returns the podman exec arguments for running a sub-agent. Public for testability.

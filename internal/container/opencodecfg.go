@@ -38,9 +38,24 @@ func GenerateOpenCodeConfig(chatID string, model config.ModelConfig) string {
 	return string(data)
 }
 
-// GeneratePiMonoConfig returns the JSON string for PI_CONFIG_CONTENT.
+// GeneratePiMonoConfig returns the JSON string for PI_CONFIG_CONTENT in Pi-Mono's mcp.json format.
 func GeneratePiMonoConfig(chatID string, model config.ModelConfig) string {
-	return GenerateOpenCodeConfig(chatID, model)
+	cfg := map[string]any{
+		"mcpServers": map[string]any{
+			"pitu": map[string]any{
+				"command": "/usr/local/bin/pitu-mcp",
+				"env": map[string]string{
+					"PITU_CHAT_ID": chatID,
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("container: marshal pimono config: %v", err))
+	}
+	return string(data)
 }
 
 // buildProviderBlock constructs the OpenCode provider config object for the given model.
