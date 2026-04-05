@@ -80,6 +80,16 @@ func (m *Manager) Dispatch(ctx context.Context, chatID string, msg ipc.InboundMe
 	if err != nil {
 		return err
 	}
+	if msg.Model == "" && m.cfg.Model.Provider != "" && m.cfg.Model.Model != "" {
+		msg.Model = m.cfg.Model.Provider + "/" + m.cfg.Model.Model
+	}
+	// Re-write input file if we updated the model
+	if msg.Model != "" {
+		inputPath, err = WriteInputFile(handle.IPCDir, msg)
+		if err != nil {
+			return err
+		}
+	}
 	return m.execOpenCode(ctx, handle, inputPath)
 }
 
@@ -343,6 +353,15 @@ func (m *Manager) BuildExecArgsPimono(containerID, inputPath string) []string {
 
 // BuildSpawnArgs returns the podman exec arguments for running a sub-agent. Public for testability.
 func (m *Manager) BuildSpawnArgs(containerID, role, prompt string) []string {
+	if m.cfg.Container.Runtime == "pimono" {
+		return []string{
+			"exec", containerID,
+			"pi", "-p",
+			"--session", "/workspace/memory/log.jsonl",
+			"--append-system-prompt", "Role: " + role,
+			prompt,
+		}
+	}
 	return []string{
 		"exec", containerID,
 		"opencode", "run",
@@ -370,6 +389,20 @@ func (m *Manager) SpawnSubAgent(ctx context.Context, chatID, role, prompt string
 		}
 	}()
 }
+// GetTrace returns the last N lines of the session log for the given chat.
+func (m *Manager) GetTrace(chatID string, n int) (string, error) {
+	logFile := filepath.Join(m.dataDir, chatID, "memory", "log.jsonl")
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		return "", fmt.Errorf("read log: %w", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
 func (m *Manager) ttl() time.Duration {
 	d, err := time.ParseDuration(m.cfg.Container.TTL)
 	if err != nil {

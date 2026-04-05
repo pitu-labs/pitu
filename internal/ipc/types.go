@@ -6,6 +6,7 @@ type InboundMessage struct {
 	From      string `json:"from"`
 	Text      string `json:"text"`
 	MessageID string `json:"message_id"`
+	Model     string `json:"model,omitempty"`
 }
 
 // OutboundMessage is written by pitu-mcp to ipc/messages/.

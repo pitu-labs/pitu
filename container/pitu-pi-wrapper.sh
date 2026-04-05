@@ -7,15 +7,21 @@ if [ -n "$PI_CONFIG_CONTENT" ]; then
   echo "$PI_CONFIG_CONTENT" > ~/.pi/agent/mcp.json
 fi
 
-# 2. Extract prompt from Pitu JSON input
+# 2. Extract prompt and model from Pitu JSON input
 INPUT_FILE=$1
 if [ -f "$INPUT_FILE" ]; then
-  # Extract text using jq
+  # Extract text and model using jq
   PROMPT=$(jq -r .text "$INPUT_FILE")
+  MODEL=$(jq -r '.model // empty' "$INPUT_FILE")
   
-  # 3. Run pi in print mode (-p) with the prompt
+  # 3. Run pi in print mode (-p) with the prompt from stdin
   # We use --session to force the log to a known location for Pitu's harness to watch.
-  pi -p --session "/workspace/memory/log.jsonl" "$PROMPT"
+  ARGS=("-p" "--session" "/workspace/memory/log.jsonl")
+  if [ -n "$MODEL" ]; then
+    ARGS+=("--model" "$MODEL")
+  fi
+  
+  echo "$PROMPT" | pi "${ARGS[@]}"
 else
   # Fallback: if no input file, just run sleep infinity (though Pitu handles this via handle ID)
   sleep infinity

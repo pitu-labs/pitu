@@ -272,6 +272,16 @@ func main() {
 		os.MkdirAll(memDir, 0700)
 		skills.WriteContext(memDir, chatID, discovered, agentCfg)
 
+		if strings.HasPrefix(u.Message.Text, "/trace") {
+			trace, err := mgr.GetTrace(chatID, 10)
+			if err != nil {
+				sender.SendMessage(chatID, "Error reading trace: "+err.Error())
+				return
+			}
+			sender.SendMessage(chatID, "Last 10 entries:\n\n"+trace)
+			return
+		}
+
 		q.Enqueue(chatID, func() {
 			if err := mgr.Dispatch(ctx, chatID, msg); err != nil {
 				log.Printf("pitu: dispatch chat %s: %v", chatID, err)

@@ -17,7 +17,7 @@ func TestBuildExecArgsPimono(t *testing.T) {
 	})(nil), nil)
 	args := m.BuildExecArgsPimono("ctr-123", "/host/ipc/input/msg.json")
 	joined := strings.Join(args, " ")
-	assert.Equal(t, "exec ctr-123 pi run --file /workspace/ipc/input/msg.json", joined)
+	assert.Equal(t, "exec ctr-123 pitu-pi-wrapper /workspace/ipc/input/msg.json", joined)
 }
 
 func TestBuildExecArgs_PimonoRuntime(t *testing.T) {
@@ -29,5 +29,5 @@ func TestBuildExecArgs_PimonoRuntime(t *testing.T) {
 	})(nil), nil)
 	args := m.BuildExecArgs("ctr-123", "/host/ipc/input/msg.json", false)
 	joined := strings.Join(args, " ")
-	assert.Equal(t, "exec ctr-123 pi run --file /workspace/ipc/input/msg.json", joined)
+	assert.Equal(t, "exec ctr-123 pitu-pi-wrapper /workspace/ipc/input/msg.json", joined)
 }

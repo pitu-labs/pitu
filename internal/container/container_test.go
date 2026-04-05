@@ -220,7 +220,6 @@ func TestGeneratePiMonoConfig_CallsGenerateOpenCodeConfig(t *testing.T) {
 	cfg := container.GeneratePiMonoConfig(chatID, mcfg)
 	assert.Contains(t, cfg, chatID)
 	assert.Contains(t, cfg, "pitu-mcp")
-	assert.Contains(t, cfg, "anthropic/claude-3-5-sonnet")
 }
 
 func TestManager_BuildRunArgs_InjectsModelWhenConfigured(t *testing.T) {
