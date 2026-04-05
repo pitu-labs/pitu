@@ -71,6 +71,30 @@ mkdir -p ~/.pitu && cp config.example.toml ~/.pitu/config.toml
 
 ---
 
+### Phase 3.5 — Runtime Preference
+
+Ask the user: "Which agent runtime would you like to use?
+1. **OpenCode** (Traditional, Go-based bridge, Bun runtime)
+2. **Pi-Mono** (Minimalist, TypeScript-native, JSONL auditing)"
+
+Based on their choice, update `~/.pitu/config.toml`:
+
+If **OpenCode**:
+```bash
+sed -i 's/runtime = .*/runtime = "opencode"/' ~/.pitu/config.toml
+sed -i 's/image = .*/image = "pitu-agent:latest"/' ~/.pitu/config.toml
+```
+
+If **Pi-Mono**:
+```bash
+sed -i 's/runtime = .*/runtime = "pimono"/' ~/.pitu/config.toml
+sed -i 's/image = .*/image = "pitu-pimono:latest"/' ~/.pitu/config.toml
+```
+
+**Verify:** `grep "runtime =" ~/.pitu/config.toml` shows the selected value.
+
+---
+
 ### Phase 4 — Telegram
 
 Invoke the `/configure-telegram` skill now. It will guide you through setting the bot token.
@@ -101,19 +125,35 @@ The output must show non-empty `provider` and `model` values. If they are missin
 
 ### Phase 5 — Container Image
 
-**Check:** Run `podman image exists pitu-agent:latest`. Exit code 0 means the image is present.
+**Check:** Determine which image to check based on `~/.pitu/config.toml`.
+
+```bash
+grep "runtime =" ~/.pitu/config.toml
+```
+
+If runtime is `"pimono"`, check `pitu-pimono:latest`. Otherwise check `pitu-agent:latest`.
+
+```bash
+podman image exists <image-name>
+```
 
 If the image is present, skip to Phase 6.
 
 **Fix:**
 
+If **OpenCode**:
 ```bash
 podman build -t pitu-agent:latest -f container/Containerfile .
 ```
 
+If **Pi-Mono**:
+```bash
+podman build -t pitu-pimono:latest -f container/Containerfile.pimono .
+```
+
 This may take several minutes on the first run as base layers are downloaded.
 
-**Verify:** `podman images pitu-agent:latest` shows the image with a recent creation timestamp.
+**Verify:** `podman images <image-name>` shows the image with a recent creation timestamp.
 
 ---
 

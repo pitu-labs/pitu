@@ -15,7 +15,18 @@ description: Update Pitu to the latest version from the repository. Use when a n
    go build ./cmd/pitu && go build ./cmd/pitu-mcp
    ```
 4. Rebuild the container image:
+   Check the current runtime in `~/.pitu/config.toml`:
+   ```bash
+   grep "runtime =" ~/.pitu/config.toml
+   ```
+   
+   If **OpenCode**:
    ```bash
    podman build -t pitu-agent:latest -f container/Containerfile .
+   ```
+   
+   If **Pi-Mono**:
+   ```bash
+   podman build -t pitu-pimono:latest -f container/Containerfile.pimono .
    ```
 5. Restart the harness.
