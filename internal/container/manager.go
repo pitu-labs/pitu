@@ -40,8 +40,11 @@ type Manager struct {
 	pool       sync.Map // chatID → *Handle
 	subPool    sync.Map // subAgentID -> *SubAgentHandle
 	skillsDisc []skills.Skill
-	watcher    interface{ RegisterDir(string, string, string, string) error } // ipc.Watcher, accepts nil
-	onExpire   func(chatID string)
+	watcher    interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	} // ipc.Watcher, accepts nil
+	onExpire func(chatID string)
 
 	startMu sync.Mutex // serialises startContainer; prevents duplicate starts on concurrent messages
 
@@ -50,7 +53,10 @@ type Manager struct {
 	dataDir   string // host base path; per-chat subdirs created here
 }
 
-func NewManager(cfg *config.Config, discovered []skills.Skill, w interface{ RegisterDir(string, string, string, string) error }, onExpire func(string)) *Manager {
+func NewManager(cfg *config.Config, discovered []skills.Skill, w interface {
+	RegisterDir(string, string, string, string) error
+	RegisterAuditFile(string, string) error
+}, onExpire func(string)) *Manager {
 	return &Manager{cfg: cfg, skillsDisc: discovered, watcher: w, onExpire: onExpire}
 }
 
@@ -142,6 +148,11 @@ func (m *Manager) startContainer(ctx context.Context, chatID string) (*Handle, e
 		if err := m.watcher.RegisterDir(ipcDir, chatID, "", ""); err != nil {
 			log.Printf("container: register ipc dirs for %s: %v", chatID, err)
 		}
+		if m.cfg.Container.Runtime == "pimono" {
+			if err := m.watcher.RegisterAuditFile(memDir, chatID); err != nil {
+				log.Printf("container: register audit log for %s: %v", chatID, err)
+			}
+		}
 	}
 
 	handle := &Handle{ID: containerID, IPCDir: ipcDir, lastActivity: time.Now()}
@@ -206,7 +217,13 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 		if err := m.watcher.RegisterDir(ipcDir, chatID, role, subAgentID); err != nil {
 			log.Printf("container: register ipc dirs for subagent %s: %v", subAgentID, err)
 		}
+		if m.cfg.Container.Runtime == "pimono" {
+			if err := m.watcher.RegisterAuditFile(memDir, chatID); err != nil {
+				log.Printf("container: register audit log for subagent %s: %v", subAgentID, err)
+			}
+		}
 	}
+
 
 	handle := &SubAgentHandle{
 		ID:         containerID,

@@ -14,8 +14,8 @@ if [ -f "$INPUT_FILE" ]; then
   PROMPT=$(jq -r .text "$INPUT_FILE")
   
   # 3. Run pi in print mode (-p) with the prompt
-  # We use --continue to maintain session history if Pi-Mono supports it as expected
-  pi -p "$PROMPT"
+  # We use --session to force the log to a known location for Pitu's harness to watch.
+  pi -p --session "/workspace/memory/log.jsonl" "$PROMPT"
 else
   # Fallback: if no input file, just run sleep infinity (though Pitu handles this via handle ID)
   sleep infinity
