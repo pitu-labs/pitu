@@ -304,6 +304,9 @@ func (m *Manager) BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir,
 
 // BuildExecArgs returns the podman exec arguments for running OpenCode on a message. Public for testability.
 func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession bool) []string {
+	if m.cfg.Container.Runtime == "pimono" {
+		return m.BuildExecArgsPimono(containerID, inputPath)
+	}
 	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
 	// --workdir places OpenCode in the memory dir so it discovers AGENTS.md via
 	// its standard upward traversal — no vendor-specific config needed.
@@ -313,6 +316,12 @@ func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession b
 	}
 	args = append(args, "-f", containerPath, "--", "Process the inbound message from the input file.")
 	return args
+}
+
+// BuildExecArgsPimono returns the podman exec arguments for running Pi-Mono on a message. Public for testability.
+func (m *Manager) BuildExecArgsPimono(containerID, inputPath string) []string {
+	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
+	return []string{"exec", containerID, "pi", "run", "--file", containerPath}
 }
 
 // BuildSpawnArgs returns the podman exec arguments for running a sub-agent. Public for testability.
