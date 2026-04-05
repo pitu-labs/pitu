@@ -59,7 +59,10 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 	cfg.Container.MemoryLimit = "256m"
 	cfg.Container.TTL = "5m"
 
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
@@ -73,7 +76,10 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 
 func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
 	cfg := &config.Config{}
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "opencode run")
@@ -83,7 +89,10 @@ func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
 
 func TestBuildExecArgs_CFlagPresent_WhenHasSession(t *testing.T) {
 	cfg := &config.Config{}
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", true)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, " -c ")
@@ -96,7 +105,10 @@ func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
 	cfg.Container.MemoryLimit = "256m"
 	cfg.Container.TTL = "5m"
 
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
@@ -105,7 +117,10 @@ func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
 
 func TestManager_BuildSpawnArgs(t *testing.T) {
 	cfg := &config.Config{}
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildSpawnArgs("ctr-xyz", "Researcher", "find papers on Go concurrency")
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "exec ctr-xyz opencode run")
@@ -217,7 +232,10 @@ func TestManager_BuildRunArgs_InjectsModelWhenConfigured(t *testing.T) {
 	cfg.Model.Model = "claude-sonnet-4-5"
 	cfg.Model.APIKey = "sk-ant-test"
 
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildRunArgs("chat-99", "/host/ipc", "/host/memory", "/host/skills", "/host/opencode", "/tmp/test-env-file")
 
 	joined := strings.Join(args, " ")
@@ -232,7 +250,10 @@ func TestManager_BuildRunArgs_UsesEnvFile(t *testing.T) {
 	cfg.Model.Provider = "anthropic"
 	cfg.Model.APIKey = "sk-ant-secret"
 
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildRunArgs("chat-1", "/ipc", "/mem", "/skills", "/opencode", "/tmp/env-file")
 	joined := strings.Join(args, " ")
 

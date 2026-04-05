@@ -11,7 +11,10 @@ import (
 
 func TestBuildExecArgsPimono(t *testing.T) {
 	cfg := &config.Config{}
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildExecArgsPimono("ctr-123", "/host/ipc/input/msg.json")
 	joined := strings.Join(args, " ")
 	assert.Equal(t, "exec ctr-123 pi run --file /workspace/ipc/input/msg.json", joined)
@@ -20,7 +23,10 @@ func TestBuildExecArgsPimono(t *testing.T) {
 func TestBuildExecArgs_PimonoRuntime(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Container.Runtime = "pimono"
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	args := m.BuildExecArgs("ctr-123", "/host/ipc/input/msg.json", false)
 	joined := strings.Join(args, " ")
 	assert.Equal(t, "exec ctr-123 pi run --file /workspace/ipc/input/msg.json", joined)

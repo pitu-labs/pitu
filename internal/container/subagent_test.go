@@ -15,7 +15,10 @@ func TestManager_BuildSubAgentRunArgs(t *testing.T) {
 	cfg.Container.MemoryLimit = "256m"
 	cfg.Container.TTL = "5m"
 
-	m := container.NewManager(cfg, nil, nil, nil)
+	m := container.NewManager(cfg, nil, (interface {
+		RegisterDir(string, string, string, string) error
+		RegisterAuditFile(string, string) error
+	})(nil), nil)
 	
 	chatID := "chat-123"
 	subAgentID := "sub-agent-456"
