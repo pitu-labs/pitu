@@ -110,8 +110,6 @@ The model API key is written to a **temporary env file** (mode `0600`) rather th
 - The env file is read by Podman at container start, then deleted from the host (`defer os.Remove`).
 - Inside the container, the key is present as a standard provider-specific environment variable (e.g. `ANTHROPIC_API_KEY`) rather than buried inside a JSON string.
 
-The Vercel AI SDK reads these standard variables natively, so no functionality is lost.
-
 ### Config File Permissions
 
 At startup, the harness checks whether `~/.pitu/config.toml` is readable by group or world (`mode & 0o077 != 0`). If it is, a warning is logged:

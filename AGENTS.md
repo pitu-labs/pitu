@@ -1,6 +1,6 @@
-# Pitu — Operator Guide
+# Pitú — Operator Guide
 
-Pitu is a local-first agent harness. Messages arrive from a **frontend** (default: Telegram), agents run inside rootless Podman containers (OpenCode + pitu-mcp), and all harness ↔ agent communication is filesystem-based IPC. New frontends and capabilities can be added as skills or new packages without touching the core IPC layer.
+Pitú is a local-first agent harness. Messages arrive from a **frontend** (default: Telegram), agents run inside rootless Podman containers (OpenCode + pitu-mcp), and all harness ↔ agent communication is filesystem-based IPC. New frontends and capabilities can be added as skills or new packages without touching the core IPC layer.
 
 For architecture details see @docs/ARCHITECTURE.md. For the security model see @docs/SECURITY.md.
 

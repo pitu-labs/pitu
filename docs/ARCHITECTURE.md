@@ -1,6 +1,6 @@
 # Architecture
 
-Pitu is a local-first agent harness. The harness receives messages from a **frontend** (default: Telegram), dispatches them to AI agents running inside rootless Podman containers, and delivers the agents' responses back through the same frontend. All communication between the harness and agents is filesystem-based (IPC).
+Pitú is a local-first agent harness. The harness receives messages from a **frontend** (default: Telegram), dispatches them to AI agents running inside rootless Podman containers, and delivers the agents' responses back through the same frontend. All communication between the harness and agents is filesystem-based (IPC).
 
 This document is intended for two audiences: **humans** who want a mental model of the system before reading code, and **AI agents** implementing new features that need to understand the invariants they must not break.
 
@@ -395,7 +395,7 @@ The global concurrency cap is enforced by the queue's semaphore channel (`cap = 
 
 ---
 
-## Extending Pitu
+## Extending Pitú
 
 ### Adding a new MCP tool
 
