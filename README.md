@@ -75,9 +75,41 @@ This keeps the upstream repo lean and the contribution history meaningful. Featu
 
 ---
 
+## Quick start
+
+The recommended way to install Pitú is to let your agent do it. The bundled `setup` skill contains instructions clear enough that any capable model can execute them end-to-end without hand-holding — **any agent harness works**. Below are reference examples for three common ones:
+
+**[OpenCode](https://opencode.ai) (recommended)**
+
+```sh
+opencode
+> skills          # open the skill picker
+> select: setup   # run the setup skill
+```
+
+**[Claude Code](https://claude.ai/code)**
+
+```sh
+claude
+> /setup
+```
+
+**[Gemini CLI](https://github.com/google-gemini/gemini-cli)**
+
+```sh
+gemini
+> /setup
+```
+
+[Kilo Code](https://kilocode.ai), [Crush](https://github.com/charmbracelet/crush), [Goose](https://github.com/block/goose), and any other agent that can read Markdown and run shell commands will work equally well — just point it at the `setup` skill and let it run.
+
+Your agent will clone the repository, build the binaries, scaffold the config, and install the system service — asking you only for the things it cannot infer (your model provider, API key, and Telegram bot token).
+
+---
+
 ## Agent-first development
 
-Pitú is built to be explored, debugged, and extended by you _with_ your agent — not by reading API docs or joining a Discord server.
+Pitú is built to be explored, debugged, and extended by you _with_ your agent — not by reading API docs or joining a Discord server. Any capable agent and model works; the codebase is small enough to fit entirely in context.
 
 - **Want to understand the code?** Point your agent at `internal/` and ask it to walk you through a request's lifecycle from Telegram poll to container exec.
 - **Building a new feature?** Have your agent read `docs/ARCHITECTURE.md`, then draft the implementation together against the documented invariants.
@@ -97,33 +129,6 @@ If LLMs continue to improve at the current pace, the relationship between develo
 In that world, what matters is the spec, the behaviour, and the tests that validate the behaviour as a black box. The implementation language, the framework, even the operating system become incidental.
 
 Pitú is built for that direction: keep the kernel small enough to specify precisely, keep the extension surface in plain text (skills, Markdown, TOML), and let agents handle the rest. The goal is not a better bot platform — it is a working example of what software looks like when it is built to be understood and modified by agents as naturally as by humans.
-
----
-
-## Quick start
-
-The recommended way to install Pitú is to let your agent do it. The bundled `setup` skill contains instructions clear enough that most capable models can execute them end-to-end without hand-holding. Pick your agent and run:
-
-**[OpenCode](https://opencode.ai) (recommended)**
-```
-opencode
-> skills          # open the skill picker
-> select: setup   # run the setup skill
-```
-
-**[Claude Code](https://claude.ai/code)**
-```
-claude
-> /setup
-```
-
-**[Gemini CLI](https://github.com/google-gemini/gemini-cli)**
-```
-gemini
-> /setup
-```
-
-Your agent will clone the repository, build the binaries, scaffold the config, and install the system service — asking you only for the things it cannot infer (your model provider, API key, and Telegram bot token).
 
 ---
 
