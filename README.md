@@ -1,4 +1,4 @@
-![[docs/assets/pitu_big.png]]
+![Pitú logo](docs/assets/pitu_big.png)
 ``` 
                         ██╗
                        ██╔╝
