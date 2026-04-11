@@ -23,9 +23,9 @@ It is built entirely on open source foundations: [Podman](https://podman.io) for
 
 Pitú is a **thin orchestrator** — OpenCode does the agent heavy lifting (model calls, tool use, session state). The harness only does what agents cannot: manage containers, route IPC, enforce rate limits, and persist state. That division of responsibility is what keeps the codebase small.
 
-The entire core orchestrator fits in **~15 source files and under 4,000 lines of Go**. You can read it in an afternoon. Your companion agent can read it in seconds. Both of you can understand it, modify it, and extend it — because that is exactly the point.
-
 Out of the box, a default installation includes a minimal but complete set of capabilities: **Telegram frontend** for sending and receiving messages, **cron-style scheduled tasks** agents can create at runtime, **multi-agent spawning** so an agent can delegate work to specialised sub-agents, and **two-tier memory** — short-term context kept alive within a warm container session, and a persistent `CONTEXT.md` scratch-pad the agent writes to and reads from across sessions. All of this works without touching configuration.
+
+The entire core orchestrator fits in **~15 source files and under 4,000 lines of Go**. You can read it in an afternoon. Your companion agent can read it in seconds. Both of you can understand it, modify it, and extend it — because that is exactly the point.
 
 ---
 
