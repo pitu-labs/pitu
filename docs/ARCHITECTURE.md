@@ -66,6 +66,10 @@ internal/
     context.go      WriteContext — writes AGENTS.md + CONTEXT.md
     agent.go        LoadAgentConfig — reads SOUL.md, IDENTITY.md, USER.md
     types.go        Skill struct
+    merge.go        Merge — clear-and-rebuild runtime skills mount dir
+    builtin/
+      builtin.go    Unpack — unpacks go:embed assets at startup
+      assets/       built-in runtime skills (SKILL.md trees)
   store/
     store.go        New, migrate — schema bootstrap
     tasks.go        SaveTask, PauseTask, GetTasksByChatID, …
@@ -81,7 +85,8 @@ internal/
 container/
   Containerfile     two-stage build: Go builder + Debian runtime
 
-.agents/skills/     bundled operator skills (AgentSkills-compatible)
+.agents/skills/     bundled operator skills — used by the operator's coding agent,
+                    NOT mounted into runtime containers
 config.example.toml annotated config template
 docs/               architecture and security documentation
 ```
