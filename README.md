@@ -31,11 +31,14 @@ The entire core orchestrator fits in **~15 source files and under 4,000 lines of
 
 ## Skill-based extensibility
 
-New capabilities come as **skills** — Markdown files with YAML frontmatter that follow the [AgentSkills specification](https://agentskills.io/specification). Skills are mounted read-only into every agent container at startup and listed in the agent's context automatically.
+New capabilities come as **skills** — Markdown files with YAML frontmatter that follow the [AgentSkills specification](https://agentskills.io/specification). Pitú distinguishes two skill audiences:
 
-Bundled skills cover setup, model configuration, container tuning, and session inspection. User skills live in `~/.agents/skills/` or `~/.pitu/skills/` and take precedence over bundled ones. There is no plugin registry, no package manager, no approval process — drop a file, restart, done.
+- **Operator skills** live in `.agents/skills/` (project root) and are run by the operator's own coding agent to install features, manage the running instance, or bootstrap new behaviors. They are never injected into the runtime agent's context.
+- **Runtime skills** are mounted into every agent container and listed in the running agent's context automatically. They come from two sources: built-ins embedded in the `pitu` binary, and operator-installed skills under `~/.pitu/skills/`. Operator-installed skills win on name conflict.
 
-For the full discovery order, merge rules, and how skills interact with the agent context system, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+A particularly powerful pattern: an operator skill can *install* a runtime skill. For example, an `add-socratic-reasoning` operator skill instructs your coding agent to write a runtime skill into `~/.pitu/skills/`, which then shapes how the running agent thinks. The operator chooses which behaviors to install; the running agent gains them on the next container start.
+
+For the four-location model, discovery rules, and merge semantics, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -57,7 +60,7 @@ Every one of these decisions is deliberate and documented. For the full threat m
 
 Pitú's contribution model mirrors its extensibility model — new features live as skills, not as commits to the core.
 
-Want WhatsApp integration? Write a skill that instructs users to have their own agent implement a companion bridge process. Want a richer task UI? Write a skill. Want to bundle a persona template, a new memory workflow, or a deployment helper? Write a skill.
+Want WhatsApp integration? Write an operator skill that instructs users to have their own agent implement a companion bridge process. Want a new way for the runtime agent to reason or summarise? Write an operator skill that installs a runtime skill describing the behavior. Want to bundle a persona template, a memory workflow, or a deployment helper? Write a skill.
 
 This keeps the core repo at ~4,000 lines and every operator's fork clean and auditable. **Pitú accepts:**
 
