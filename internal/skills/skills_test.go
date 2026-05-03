@@ -29,16 +29,16 @@ func TestDiscover_FindsSkills(t *testing.T) {
 	assert.Equal(t, "Does my thing", found[0].Description)
 }
 
-func TestDiscover_ProjectOverridesUser(t *testing.T) {
-	user := t.TempDir()
-	project := t.TempDir()
-	makeSkill(t, user, "shared-skill", "user version")
-	makeSkill(t, project, "shared-skill", "project version")
+func TestDiscover_HigherPrecedencePathWins(t *testing.T) {
+	low := t.TempDir()
+	high := t.TempDir()
+	makeSkill(t, low, "shared-skill", "low version")
+	makeSkill(t, high, "shared-skill", "high version")
 
-	// project paths listed first = higher precedence
-	found := skills.Discover([]string{project, user})
+	// First path in the slice = highest precedence (first occurrence wins).
+	found := skills.Discover([]string{high, low})
 	require.Len(t, found, 1)
-	assert.Equal(t, "project version", found[0].Description)
+	assert.Equal(t, "high version", found[0].Description)
 }
 
 func TestDiscover_MissingDescriptionSkipped(t *testing.T) {
