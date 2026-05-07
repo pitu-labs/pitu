@@ -70,6 +70,13 @@ description: One sentence describing when to invoke this skill.
 
 - **Human-readable first.** A motivated non-technical user should be able to read the skill and understand what it does and what will happen if they invoke it.
 
+**Two flavors of operator skill.** A skill in `.agents/skills/` can either:
+
+1. **Modify the system** — for example, install Discord support, swap the storage backend, or add a web dashboard. The skill instructs the operator's coding agent to make changes to the operator's local Pitú installation.
+2. **Install a runtime skill** — write a new `SKILL.md` into `~/.pitu/skills/` describing how the *running* Pitú agent should think, summarise, reason, or use specific MCP tools. The next container start picks it up automatically.
+
+The second flavor is one of the most powerful contribution patterns Pitú offers. A community-contributed `add-socratic-reasoning` operator skill, for example, doesn't change a single line of Pitú core code — it bootstraps a new *cognitive behavior* into the running agent by writing a runtime skill the operator chose to install. Behaviors become composable, shareable, and opt-in without ever touching the kernel.
+
 ### 3. Test your skill locally
 
 Install your fork locally and verify that:

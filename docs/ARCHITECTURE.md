@@ -66,6 +66,10 @@ internal/
     context.go      WriteContext — writes AGENTS.md + CONTEXT.md
     agent.go        LoadAgentConfig — reads SOUL.md, IDENTITY.md, USER.md
     types.go        Skill struct
+    merge.go        Merge — clear-and-rebuild runtime skills mount dir
+    builtin/
+      builtin.go    Unpack — unpacks go:embed assets at startup
+      assets/       built-in runtime skills (SKILL.md trees)
   store/
     store.go        New, migrate — schema bootstrap
     tasks.go        SaveTask, PauseTask, GetTasksByChatID, …
@@ -81,7 +85,8 @@ internal/
 container/
   Containerfile     two-stage build: Go builder + Debian runtime
 
-.agents/skills/     bundled operator skills (AgentSkills-compatible)
+.agents/skills/     bundled operator skills — used by the operator's coding agent,
+                    NOT mounted into runtime containers
 config.example.toml annotated config template
 docs/               architecture and security documentation
 ```
@@ -204,19 +209,24 @@ Alternatively, a channel can be delivered as an operator skill — a companion p
 
 ## Skills System
 
-Skills are Markdown files (`SKILL.md`) with YAML frontmatter that follow the [AgentSkills specification](https://agentskills.io/specification). They are loaded into the agent's context at startup.
+Skills are Markdown files (`SKILL.md`) with YAML frontmatter that follow the [AgentSkills specification](https://agentskills.io/specification). Pitú separates skills into two audiences with no overlap:
 
-**Discovery order (highest precedence first):**
+### Operator skills
 
-1. `<binary-dir>/.agents/skills/` (bundled skills)
-2. `<binary-dir>/.pitu/skills/`
-3. `~/.agents/skills/`
-4. `~/.pitu/skills/`
-5. Paths in `cfg.Skills.ExtraPaths`
+Operator skills live in `.agents/skills/` at the project root. They are read by the operator's own coding agent (which finds them via standard AgentSkills discovery when the operator CDs into the project root). The Pitú harness does not scan or mount these skills — they exist purely to guide the operator's agent in installing features, configuring the instance, or generating runtime skills.
 
-All discovered skills are merged into `~/.pitu/data/skills/` at startup and mounted read-only into every container. When two skills share the same `name`, the higher-precedence one wins.
+### Runtime skills
 
-**Bundled skills** (in `.agents/skills/`):
+Runtime skills are loaded into every agent container's context. They come from two sources:
+
+1. **Built-in** — embedded in the `pitu` binary at build time from `internal/skills/builtin/assets/`. Unpacked at startup into `~/.pitu/data/skills-builtin/`.
+2. **Operator-installed** — discovered from `~/.pitu/skills/`. Written by operator skills (for example, an `add-socratic-reasoning` operator skill might write `~/.pitu/skills/socratic-reasoning/SKILL.md`).
+
+Both sources are merged into `~/.pitu/data/skills/` on every startup. The merge directory is fully cleared before rebuild so a built-in removed in a binary upgrade does not linger. Operator-installed skills win on name conflict (operator agency over kernel default). The merge directory is mounted read-only into runtime containers at `/workspace/skills`.
+
+### Bundled operator skills
+
+Today's bundled operator skills (in `.agents/skills/`):
 
 | Skill | Purpose |
 |-------|---------|
@@ -227,6 +237,7 @@ All discovered skills are merged into `~/.pitu/data/skills/` at startup and moun
 | `add-memory-backend` | Swap SQLite for another store |
 | `update-pitu` | Pull and rebuild from latest |
 | `update-model` | Change AI provider/model |
+| `uninstall-pitu` | Remove the system service and binaries |
 
 ---
 
@@ -259,12 +270,14 @@ Optional Markdown files in `~/.pitu/agent/` are injected as named sections insid
 ~/.pitu/
   config.toml          operator configuration (mode 0600)
   pitu.db              SQLite store (messages, tasks, groups, sessions)
+  skills/              operator-installed runtime skills (written by operator skills)
   agent/               optional personalisation files
     IDENTITY.md
     SOUL.md
     USER.md
   data/
-    skills/            merged skill tree (mounted ro into containers)
+    skills/            merged runtime skill tree (mounted ro into containers)
+    skills-builtin/    unpacked from the binary on every startup
     <chatID>/
       ipc/
         input/         harness writes InboundMessage files here

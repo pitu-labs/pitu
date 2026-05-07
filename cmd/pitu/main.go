@@ -17,6 +17,7 @@ import (
 	"github.com/pitu-dev/pitu/internal/queue"
 	"github.com/pitu-dev/pitu/internal/scheduler"
 	"github.com/pitu-dev/pitu/internal/skills"
+	"github.com/pitu-dev/pitu/internal/skills/builtin"
 	"github.com/pitu-dev/pitu/internal/store"
 	"github.com/pitu-dev/pitu/internal/telegram"
 )
@@ -64,34 +65,37 @@ func main() {
 	}
 	defer st.Close()
 
-	// Skills discovery — use binary-relative paths so the service finds bundled
-	// skills regardless of CWD (systemd/launchd don't set a meaningful working dir).
+	// Runtime skills come from two sources:
+	//   1. Built-ins embedded in the binary, unpacked to ~/.pitu/data/skills-builtin/
+	//   2. Operator-installed skills under ~/.pitu/skills/ (written by operator skills
+	//      such as add-socratic-reasoning)
+	// Operator skills (.agents/skills/) are NOT scanned here — they belong to the
+	// operator's coding agent, which finds them via standard AgentSkills discovery
+	// when the operator CDs into the project root.
 	home, _ := os.UserHomeDir()
-	skillsPaths := []string{
-		filepath.Join(home, ".agents", "skills"),
-		filepath.Join(home, ".pitu", "skills"),
+	dataDir := filepath.Join(home, ".pitu", "data")
+	os.MkdirAll(dataDir, 0700)
+
+	builtinDir := filepath.Join(dataDir, "skills-builtin")
+	if err := builtin.Unpack(builtinDir); err != nil {
+		log.Fatalf("pitu: failed to unpack built-in runtime skills: %v", err)
 	}
-	if exe, err := os.Executable(); err == nil {
-		if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-			binaryDir := filepath.Dir(resolved)
-			skillsPaths = append(skillsPaths,
-				filepath.Join(binaryDir, ".agents", "skills"),
-				filepath.Join(binaryDir, ".pitu", "skills"),
-			)
-		}
+
+	runtimePaths := []string{
+		filepath.Join(home, ".pitu", "skills"), // operator-installed (higher precedence)
+		builtinDir,                             // built-in (lower precedence)
 	}
-	skillsPaths = append(skillsPaths, cfg.Skills.ExtraPaths...)
-	discovered := skills.Discover(skillsPaths)
-	log.Printf("pitu: discovered %d skills", len(discovered))
+	runtimePaths = append(runtimePaths, cfg.Skills.ExtraPaths...)
+	discovered := skills.Discover(runtimePaths)
+	log.Printf("pitu: discovered %d runtime skills", len(discovered))
 
 	agentDir := filepath.Join(home, ".pitu", "agent")
 	agentCfg := skills.LoadAgentConfig(agentDir)
 
-	dataDir := filepath.Join(home, ".pitu", "data")
-	os.MkdirAll(dataDir, 0700)
-
-	// Merge all discovered skills into a single directory for container mounting
-	skillsMount := mergeSkills(dataDir, discovered)
+	skillsMount := filepath.Join(dataDir, "skills")
+	if err := skills.Merge(skillsMount, discovered); err != nil {
+		log.Fatalf("pitu: failed to merge runtime skills: %v", err)
+	}
 
 	// Declare q, mgr, ctx, and cancel before any closures that reference them (Go requires declaration before use in closures).
 	var q *queue.Queue
@@ -294,41 +298,3 @@ func isAllowed(chatID int64, allowed []int64) bool {
 	return false
 }
 
-// mergeSkills copies all discovered skills into a single scratch directory
-// (dataDir/skills/) so containers see a unified merged view via one mount.
-// Project-level skills (higher precedence) are copied last and overwrite user-level
-// copies with the same name — matching the precedence order of skills.Discover.
-func mergeSkills(dataDir string, discovered []skills.Skill) string {
-	mergedDir := filepath.Join(dataDir, "skills")
-	os.MkdirAll(mergedDir, 0700)
-	// Copy in reverse order so higher-precedence entries (index 0) win
-	for i := len(discovered) - 1; i >= 0; i-- {
-		s := discovered[i]
-		skillSrcDir := filepath.Dir(s.Path) // parent of SKILL.md
-		dest := filepath.Join(mergedDir, s.Name)
-		os.MkdirAll(dest, 0700)
-		// Copy entire skill directory tree
-		copyDir(skillSrcDir, dest)
-	}
-	return mergedDir
-}
-
-func copyDir(src, dst string) {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		srcPath := filepath.Join(src, e.Name())
-		dstPath := filepath.Join(dst, e.Name())
-		if e.IsDir() {
-			os.MkdirAll(dstPath, 0700)
-			copyDir(srcPath, dstPath)
-		} else {
-			data, err := os.ReadFile(srcPath)
-			if err == nil {
-				os.WriteFile(dstPath, data, 0600)
-			}
-		}
-	}
-}

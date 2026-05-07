@@ -31,11 +31,14 @@ internal/        all library packages (one responsibility each)
   queue/         per-chat FIFO dispatch with global concurrency cap
   ratelimit/     per-chat fixed-interval rate limiter
   scheduler/     cron-style task runner
-  skills/        skill discovery, merging, and agent context injection
+  skills/        runtime skill discovery, merging, and agent context injection
+    builtin/     embedded built-in runtime skills (go:embed)
+      assets/    SKILL.md trees shipped with the binary
   store/         SQLite persistence (messages, tasks, groups, sessions)
   telegram/      Telegram frontend adapter (Poller + Sender)
 container/       Containerfile for the agent container image
-.agents/skills/  bundled operator skills (AgentSkills-compatible)
+.agents/skills/  bundled operator skills — used by the operator's coding agent,
+                 NOT mounted into runtime containers
 docs/            architecture and security documentation
 ```
 
@@ -62,9 +65,19 @@ The IPC, queue, container, and scheduler layers require no changes in either cas
 
 ## Skills
 
-Bundled operator skills live in `.agents/skills/`. User skills go in `~/.agents/skills/` or `~/.pitu/skills/`. Skills follow the [AgentSkills specification](https://agentskills.io/specification).
+Pitú has two skill audiences that never mix:
 
-Add a new bundled skill by creating `.agents/skills/<name>/SKILL.md`.
+| Audience | Location | Purpose | Mounted into runtime? |
+|----------|----------|---------|------------------------|
+| Operator | `.agents/skills/` (project) | Run by the operator's coding agent to install features or manage the instance | No |
+| Runtime — built-in | `internal/skills/builtin/assets/` | Embedded in the binary; unpacked at startup | Yes |
+| Runtime — operator-installed | `~/.pitu/skills/` | Written by operator skills (e.g. `add-socratic-reasoning`) | Yes |
+| Runtime — merged mount | `~/.pitu/data/skills/` | Pitú-managed scratch dir; cleared and rebuilt on every startup | Yes (this *is* the mount) |
+
+Skills follow the [AgentSkills specification](https://agentskills.io/specification). Operator-installed runtime skills win over built-ins on name conflict.
+
+To add a bundled operator skill: create `.agents/skills/<name>/SKILL.md`.
+To add a built-in runtime skill: create `internal/skills/builtin/assets/<name>/SKILL.md` (rebuild required).
 
 ## Agent Personalization
 
