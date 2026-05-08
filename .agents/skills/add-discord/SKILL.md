@@ -1,6 +1,6 @@
 ---
 name: add-discord
-description: Add Discord as a frontend communication channel alongside or instead of Telegram. Implements the full feature set — message receive/send, typing indicator, emoji reactions, allowlist, rate limiting, and named sub-agent bubbling.
+description: Add Discord as a frontend communication channel. Implements the full feature set — message receive/send, typing indicator, emoji reactions, allowlist, rate limiting, and named sub-agent bubbling. Can run alongside any existing frontend or replace it.
 ---
 
 ## Add Discord Frontend
@@ -8,6 +8,30 @@ description: Add Discord as a frontend communication channel alongside or instea
 This skill adds a Discord frontend adapter (`internal/discord/`) and wires it into the harness following the same pattern as the Telegram adapter. Work through each phase in order.
 
 The architecture document at `docs/ARCHITECTURE.md` describes the Poller/Sender contract. Read the "Implementing a New Frontend" section before starting.
+
+---
+
+### Phase 0 — Inspect the current frontend wiring, then clarify deployment mode (REQUIRED before any code changes)
+
+**Step 0a — Read the codebase first.**
+
+Before asking anything, read `cmd/pitu/main.go` and `internal/config/config.go` to discover:
+
+- Which frontend(s) are currently wired (look for `Poller` and `Sender` construction, and the corresponding config structs).
+- How the existing config validation works (what tokens or credentials are required today).
+- Whether any allowlist or rate-limiting pattern already exists, and what it looks like.
+
+Record your findings. They will directly shape how you adapt Phases 2, 6, and 7.
+
+**Step 0b — Ask the operator one question and wait for a reply before writing any code:**
+
+> "I can see that [summarise what you found — e.g. 'the harness currently uses a custom Slack adapter' or 'no frontend is currently wired']. Should Discord run **alongside the existing frontend(s)** or **replace them entirely**?"
+
+Record the operator's answer as either `alongside` or `replace`. Every branching note in Phase 6 refers to this recorded choice.
+
+**Step 0c — Collect the Discord bot token.**
+
+Also ask for the **Discord bot token** at this point if the operator has it available, so you can write the config in Phase 7 without another interruption. If they don't have it yet, proceed without it — Phase 7 will prompt again.
 
 ---
 
@@ -47,17 +71,22 @@ type Config struct {
 }
 ```
 
-**2b. Relax the Telegram-only requirement in `config.Load`.**
+**2b. Update the frontend validation in `config.Load`.**
 
-Replace the hard `bot_token` check with a check that at least one frontend is configured:
+Read the existing validation logic (discovered in Phase 0) and extend it to include `cfg.Discord.BotToken`. The goal is to ensure at least one frontend is configured; the exact condition depends on what frontends are currently wired.
+
+For example, if the current check requires only one specific frontend's token, broaden it to an OR across all known frontends:
 
 ```go
-if cfg.Telegram.BotToken == "" && cfg.Discord.BotToken == "" {
-    return nil, fmt.Errorf("config: at least one frontend must be configured (telegram.bot_token or discord.bot_token)")
+// Adapt this condition to include every frontend config field present in the struct.
+if cfg.Discord.BotToken == "" /* && cfg.<OtherFrontend>.Token == "" ... */ {
+    return nil, fmt.Errorf("config: at least one frontend must be configured")
 }
 ```
 
-**2c. Add the section to `config.example.toml`** after the `[telegram]` block:
+If the operator chose `replace` in Phase 0 and the old frontend's config field is being removed, drop it from both the struct and this condition.
+
+**2c. Add the section to `config.example.toml`** after any existing frontend config blocks:
 
 ```toml
 [discord]
@@ -227,7 +256,11 @@ func (s *Sender) Close() {
 
 ### Phase 6 — Wire into `cmd/pitu/main.go`
 
-Add the Discord frontend alongside Telegram. Both frontends share the same `q`, `mgr`, `router`, and `limiter` — the harness layers are channel-agnostic.
+All frontends share the same `q`, `mgr`, `router`, and `limiter` — the harness layers are channel-agnostic.
+
+Apply your Phase 0 findings here:
+- **`alongside`**: add the Discord block after any existing frontend initialization blocks and keep those blocks unchanged.
+- **`replace`**: remove (or comment out) the existing frontend initialization block(s) and their config dependencies, then add the Discord block in their place. Also remove the now-unused config struct fields and imports.
 
 **6a. Import the new package:**
 
@@ -235,7 +268,9 @@ Add the Discord frontend alongside Telegram. Both frontends share the same `q`, 
 "github.com/pitu-dev/pitu/internal/discord"
 ```
 
-**6b. Construct and start after the existing Telegram block** (or replace it if running Discord-only):
+**6b. Construct and start the Discord poller and sender.**
+
+The pattern below is a reference — adapt variable names and surrounding code to match what is already in `main.go`:
 
 ```go
 if cfg.Discord.BotToken != "" {
@@ -294,7 +329,7 @@ if cfg.Discord.BotToken != "" {
 }
 ```
 
-**6c. Add the allowlist helper** (parallel to `isAllowed` for Telegram):
+**6c. Add the allowlist helper** (or adapt the existing one if a similar pattern is already present):
 
 ```go
 func isAllowedDiscord(channelID string, allowed []int64) bool {
@@ -310,25 +345,73 @@ func isAllowedDiscord(channelID string, allowed []int64) bool {
 }
 ```
 
-**6d. Extend the reaction callback** in `ipc.NewRouter` to route reactions to the correct sender based on which frontend owns the channel. The simplest approach: attempt Telegram first (it will return an error on a non-numeric chat ID), then attempt Discord. Or check the channel ID format: Telegram IDs are signed integers (may be negative for groups), Discord snowflakes are always large positive integers. Choose whichever approach is clearest for the fork.
+**6d. Extend the reaction callback** in `ipc.NewRouter` to route reactions to the correct sender.
+
+Read the existing reaction callback (found in Phase 0) to understand what senders it already calls. Then extend it for Discord.
+
+If multiple frontends are active (`alongside` mode), the callback must route to the right sender. A reliable discriminator: Discord channel IDs are always large positive integers (snowflakes ≥ 2^22, i.e. > 4 million); adapt this or any other discriminator that matches what the existing frontends use for their chat IDs. If only Discord is active (`replace` mode), replace the callback body entirely.
 
 ---
 
-### Phase 7 — Verify and Smoke Test
+### Phase 7 — Configure, build, restart, and verify
 
-After implementing all phases, confirm the project compiles cleanly (e.g. `go build ./cmd/pitu`) and resolve any type or import errors before restarting the harness.
+Do all of the following steps yourself. Do not ask the operator to run commands or edit files manually.
 
-For a smoke test:
+**7a. Write the config.**
 
-1. Set `discord.bot_token` in `~/.pitu/config.toml` to the token from the [Discord Developer Portal](https://discord.com/developers/applications). Invite the bot to a server with the `bot` scope and `Send Messages`, `Add Reactions`, `Read Message History` permissions.
-2. Get the target channel's ID: right-click the channel → "Copy Channel ID" (Developer Mode must be on in Discord settings).
-3. Add the channel ID to `discord.allowed_channel_ids` in `config.toml`.
-4. Restart the harness (e.g. via `./pitu service install` or by restarting the existing service).
-5. Send a message in the target Discord channel. The expected behavior: a typing indicator appears shortly after the message, followed by the agent's reply.
+Read `~/.pitu/config.toml`. Add the `[discord]` section (using the token collected in Phase 0, or ask for it now if it was deferred):
 
-**If no response:**
-- Review harness logs (e.g. `./pitu service logs -n 30`) for connection or dispatch errors.
-- Confirm the bot has been granted the `MESSAGE CONTENT` privileged intent in the Developer Portal → Bot → Privileged Gateway Intents. Without it, `m.Content` is always empty.
+```toml
+[discord]
+bot_token           = "<token>"
+allowed_channel_ids = []
+rate_limit          = "5s"
+```
+
+If the operator chose `replace` in Phase 0 and the previous frontend's section is still present, remove or comment it out. Write the updated file back.
+
+**7b. Build.**
+
+```bash
+go build ./cmd/pitu
+```
+
+If the build fails, fix the errors and rebuild before continuing. Do not proceed past a failing build.
+
+**7c. Restart the harness.**
+
+Determine whether Pitú is running as a managed service or as a standalone process:
+
+```bash
+# Check for a managed service (Linux systemd)
+systemctl --user is-active pitu 2>/dev/null || systemctl is-active pitu 2>/dev/null
+```
+
+- If a systemd service is active: `systemctl --user restart pitu || sudo systemctl restart pitu`
+- If Pitú was installed via `./pitu service install`: `./pitu service install` (reinstalls and restarts)
+- If neither: start the harness directly in the background and note the PID
+
+**7d. Verify the connection from logs.**
+
+Wait a few seconds, then check the logs for a successful Discord gateway connection:
+
+```bash
+./pitu service logs -n 40
+```
+
+Look for a log line indicating the Discord gateway connected (e.g. no `discord: open:` error lines). If the harness is not managed by the service subcommand, tail the process output directly.
+
+**If the gateway fails to connect:**
+- Confirm `MESSAGE CONTENT` privileged intent is enabled in the Discord Developer Portal → Bot → Privileged Gateway Intents. Without it, `m.Content` is always empty and the bot cannot read messages.
+- Check for authentication errors (invalid token) in the logs.
+
+**7e. Report to the operator.**
+
+Once the logs confirm a clean startup with no Discord errors, tell the operator:
+
+- That Discord is live and which mode is active (`alongside` or `replace`).
+- How to get a channel ID for the allowlist: right-click a channel in Discord → "Copy Channel ID" (Developer Mode must be enabled in Discord User Settings → Advanced).
+- That they can add channel IDs to `discord.allowed_channel_ids` in `~/.pitu/config.toml` at any time and restart to apply.
 
 ---
 
