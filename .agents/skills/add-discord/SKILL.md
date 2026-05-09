@@ -33,7 +33,7 @@ Record the operator's answer as either `alongside` or `replace`. Every branching
 
 Ask: "Do you already have a Discord bot token for this?"
 
-- **If yes:** collect it now and skip Step 0d entirely.
+- **If yes:** collect the token now, then also ask for at least one Discord channel ID to add to the allowlist (right-click any channel in Discord → "Copy Channel ID" — requires Developer Mode to be on in Discord User Settings → Advanced). Record both and skip Step 0d entirely.
 - **If no:** work through Step 0d below before continuing.
 
 **Step 0d — Guide the operator through Discord bot setup (skip if token already in hand).**
@@ -57,7 +57,11 @@ Walk the operator through each of the following steps, waiting for confirmation 
    In the left sidebar go to **OAuth2** → **URL Generator** → under **Scopes** check `bot` → under **Bot Permissions** check **Send Messages**, **Add Reactions**, and **Read Message History** → copy the generated URL → open it in a browser → select the server to invite the bot to → click **Authorise**.
    > The bot must be in at least one server before the Gateway connection can be tested.
 
-Once the operator confirms the bot is in a server and they have the token, record the token and proceed to Phase 1.
+6. **Collect a channel ID for the allowlist.**
+   In Discord, enable Developer Mode if it isn't already: **User Settings → Advanced → Developer Mode**. Then right-click the channel where the bot should listen → **Copy Channel ID**. Share that ID — the agent will write it directly into the config.
+   > At least one channel ID is needed so messages are not silently rejected by the allowlist check.
+
+Once the operator has confirmed the bot is in a server and has provided the token and at least one channel ID, record both and proceed to Phase 1.
 
 ---
 
@@ -385,16 +389,20 @@ Do all of the following steps yourself. Do not ask the operator to run commands 
 
 **7a. Write the config.**
 
-Read `~/.pitu/config.toml`. Add the `[discord]` section (using the token collected in Phase 0, or ask for it now if it was deferred):
+Read `~/.pitu/config.toml`. Add the `[discord]` section using the token and channel ID(s) collected in Phase 0 (ask now if either was deferred):
 
 ```toml
 [discord]
 bot_token           = "<token>"
-allowed_channel_ids = []
+allowed_channel_ids = [<channel_id>]   # one or more IDs collected in Phase 0
 rate_limit          = "5s"
 ```
 
-If the operator chose `replace` in Phase 0 and the previous frontend's section is still present, remove or comment it out. Write the updated file back.
+If the operator chose `replace` in Phase 0 and the previous frontend's section is still present, remove or comment it out. Write the updated file back, then immediately lock its permissions:
+
+```bash
+chmod 600 ~/.pitu/config.toml
+```
 
 **7b. Build.**
 
@@ -435,9 +443,8 @@ Look for a log line indicating the Discord gateway connected (e.g. no `discord: 
 
 Once the logs confirm a clean startup with no Discord errors, tell the operator:
 
-- That Discord is live and which mode is active (`alongside` or `replace`).
-- How to get a channel ID for the allowlist: right-click a channel in Discord → "Copy Channel ID" (Developer Mode must be enabled in Discord User Settings → Advanced).
-- That they can add channel IDs to `discord.allowed_channel_ids` in `~/.pitu/config.toml` at any time and restart to apply.
+- That Discord is live, which mode is active (`alongside` or `replace`), and which channel(s) are on the allowlist.
+- That to add more channels later, they can share the channel IDs and you will update `~/.pitu/config.toml` and restart the harness for them.
 
 ---
 
