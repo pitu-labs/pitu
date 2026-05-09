@@ -31,7 +31,33 @@ Record the operator's answer as either `alongside` or `replace`. Every branching
 
 **Step 0c — Collect the Discord bot token.**
 
-Also ask for the **Discord bot token** at this point if the operator has it available, so you can write the config in Phase 7 without another interruption. If they don't have it yet, proceed without it — Phase 7 will prompt again.
+Ask: "Do you already have a Discord bot token for this?"
+
+- **If yes:** collect it now and skip Step 0d entirely.
+- **If no:** work through Step 0d below before continuing.
+
+**Step 0d — Guide the operator through Discord bot setup (skip if token already in hand).**
+
+Walk the operator through each of the following steps, waiting for confirmation at each one before moving on. Do not assume any step is already done.
+
+1. **Create an application.**
+   Go to [discord.com/developers/applications](https://discord.com/developers/applications) → click **New Application** → give it a name (e.g. "Pitú") → click **Create**.
+
+2. **Add a bot user.**
+   In the left sidebar click **Bot** → click **Add Bot** → confirm. This creates the bot identity that will connect to the Gateway.
+
+3. **Enable the MESSAGE CONTENT privileged intent.**
+   Still on the **Bot** page, scroll to **Privileged Gateway Intents** → enable **MESSAGE CONTENT INTENT** → click **Save Changes**.
+   > This is the single most common failure mode. Without it, `m.Content` is always empty and the bot will silently ignore every message.
+
+4. **Copy the bot token.**
+   Click **Reset Token** (or **Copy** if visible) → copy the token and keep it somewhere safe — Discord will not show it again. This is the value for `discord.bot_token` in the Pitú config.
+
+5. **Invite the bot to a server.**
+   In the left sidebar go to **OAuth2** → **URL Generator** → under **Scopes** check `bot` → under **Bot Permissions** check **Send Messages**, **Add Reactions**, and **Read Message History** → copy the generated URL → open it in a browser → select the server to invite the bot to → click **Authorise**.
+   > The bot must be in at least one server before the Gateway connection can be tested.
+
+Once the operator confirms the bot is in a server and they have the token, record the token and proceed to Phase 1.
 
 ---
 
