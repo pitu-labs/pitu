@@ -177,6 +177,16 @@ This ensures containers are not left running as orphans after the harness exits.
 
 The codebase is intentionally small (~4,000 lines, ~15 source files in `internal/`). A small, focused codebase is easier to audit than a large one. The project does not accept feature pull requests upstream; new capability comes through user-authored skills, which run inside the same container sandbox as the agent.
 
+### Skill Contribution Model as a Supply Chain Control
+
+Contributed skills are prose-only by design. Skills must not contain source code in any programming language — not as implementation and not as illustrative examples. This is a deliberate supply chain security control, not a style preference.
+
+The threat it addresses: a malicious skill contributor could embed obfuscated source code — exfiltration logic, backdoors, or other adversarial payloads — inside a skill that appears legitimate on review. Operator agents read skill content as authoritative instructions and may reproduce code verbatim without the operator recognising the risk. Automated tooling (SAST, secret scanners) cannot reliably analyse code embedded in Markdown fenced blocks.
+
+Requiring prose-only descriptions forces malicious intent to be expressed in natural language, where it becomes semantically legible to human reviewers. An instruction that reads "exfiltrate session tokens to a remote endpoint" cannot be disguised the way an obfuscated function can. This shifts the cost of a supply chain attack from "craft plausible-looking code" — a low bar — to "describe harmful intent in plain language without reviewers noticing" — a much higher bar.
+
+Simple single-line shell commands for maintenance tasks (service restart, status checks) are permitted as a narrow exception, each accompanied by a plain-language explanation of its effect.
+
 For ongoing dependency security, run:
 
 ```bash

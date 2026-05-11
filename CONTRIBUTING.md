@@ -62,13 +62,17 @@ description: One sentence describing when to invoke this skill.
 
 - **Opt-in, never prescriptive.** Skills describe what an agent *can* do — not what it must do. Assume the operator may choose not to run the skill. Do not write instructions that modify the user's system without explicit confirmation at each step.
 
-- **No code execution.** Skills must not contain instructions that run or write code directly. Shell commands and code blocks are permitted only as **illustrative examples** in few-shot prompt style — never as imperative steps an agent executes blindly. The agent reading the skill, and the user it serves, decide what to run.
+- **No source code.** Skills must not contain source code in any programming language — not as implementation, and not as illustrative examples. Code embedded in skill files cannot be scanned by automated tooling and may be reproduced verbatim by operator agents without the user recognising a security risk. Describe new code behaviorally instead: inputs, outputs, side effects, error conditions, and which existing patterns in the codebase to follow (e.g., "follow the atomic rename pattern in `cmd/pitu-mcp/tools.go`").
+
+- **Simple shell commands are permitted** for maintenance and management tasks only — restarting the service, checking status, tailing logs. Each command must be a single-line invocation, not a shell function, loop, or multi-step script, and must be accompanied by a brief plain-language explanation of what it does and any side effects it has.
 
 - **Concise and complete.** Skills are injected into the agent's context on every message. Context space is a shared resource. A skill should be long enough to guide a successful implementation and short enough not to crowd out the conversation. Aim for 100–300 lines. If it runs longer, split it into two skills.
 
 - **Agent-agnostic.** Any capable agent using any supported model should be able to read your skill and act on it successfully. Avoid idioms or tool references specific to a single agent harness.
 
 - **Human-readable first.** A motivated non-technical user should be able to read the skill and understand what it does and what will happen if they invoke it.
+
+> **Exceptions to the no-source-code principle** will be considered on a case-by-case basis but will receive significantly closer scrutiny than other contributions. In all cases, the author will be asked to attempt a prose-only version of the proposed code before a PR can be approved. An exception will only be granted if the reviewers agree that the intent cannot be expressed clearly and safely in prose.
 
 **Two flavors of operator skill.** A skill in `.agents/skills/` can either:
 
