@@ -65,7 +65,7 @@ func TestWriteContext_CreatesBothFiles(t *testing.T) {
 	makeSkill(t, skillsDir, "test-skill", "Test skill description")
 	found := skills.Discover([]string{skillsDir})
 
-	require.NoError(t, skills.WriteContext(tmp, "chat-42", found, skills.AgentConfig{}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-42", skills.PlatformTelegram, found, skills.AgentConfig{}))
 
 	// AGENTS.md holds the config content
 	system, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
@@ -80,10 +80,10 @@ func TestWriteContext_CreatesBothFiles(t *testing.T) {
 
 func TestWriteContext_SystemAlwaysRefreshed(t *testing.T) {
 	tmp := t.TempDir()
-	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, skills.AgentConfig{Identity: "You are Aria."}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-1", skills.PlatformTelegram, nil, skills.AgentConfig{Identity: "You are Aria."}))
 
 	// Second call with different identity — AGENTS.md must reflect new config
-	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, skills.AgentConfig{Identity: "You are BB-8."}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-1", skills.PlatformTelegram, nil, skills.AgentConfig{Identity: "You are BB-8."}))
 
 	system, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
@@ -96,14 +96,14 @@ func TestWriteContext_MemoryNotOverwritten(t *testing.T) {
 	existing := filepath.Join(tmp, "CONTEXT.md")
 	require.NoError(t, os.WriteFile(existing, []byte("# existing notes"), 0644))
 
-	require.NoError(t, skills.WriteContext(tmp, "any-chat", nil, skills.AgentConfig{}))
+	require.NoError(t, skills.WriteContext(tmp, "any-chat", skills.PlatformTelegram, nil, skills.AgentConfig{}))
 	data, _ := os.ReadFile(existing)
 	assert.True(t, strings.HasPrefix(string(data), "# existing notes"))
 }
 
 func TestWriteContext_DoesNotContainCapabilitiesBlock(t *testing.T) {
 	tmp := t.TempDir()
-	require.NoError(t, skills.WriteContext(tmp, "chat-99", nil, skills.AgentConfig{}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-99", skills.PlatformTelegram, nil, skills.AgentConfig{}))
 	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
@@ -119,7 +119,7 @@ func TestWriteContext_IncludesAgentSections(t *testing.T) {
 		Soul:     "Be direct and friendly.",
 		User:     "User is Rob.",
 	}
-	require.NoError(t, skills.WriteContext(tmp, "chat-1", nil, agent))
+	require.NoError(t, skills.WriteContext(tmp, "chat-1", skills.PlatformTelegram, nil, agent))
 	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
@@ -133,7 +133,7 @@ func TestWriteContext_IncludesAgentSections(t *testing.T) {
 
 func TestWriteContext_OmitsSectionsWhenEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	require.NoError(t, skills.WriteContext(tmp, "chat-2", nil, skills.AgentConfig{}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-2", skills.PlatformTelegram, nil, skills.AgentConfig{}))
 	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)
@@ -142,9 +142,30 @@ func TestWriteContext_OmitsSectionsWhenEmpty(t *testing.T) {
 	assert.NotContains(t, content, "## User")
 }
 
+func TestWriteContext_PlatformLabelMatchesCaller(t *testing.T) {
+	cases := []struct {
+		name     string
+		platform string
+		want     string
+	}{
+		{"telegram constant", skills.PlatformTelegram, "**Platform:** Telegram"},
+		{"discord constant", skills.PlatformDiscord, "**Platform:** Discord"},
+		{"arbitrary string accepted", "custom-frontend", "**Platform:** custom-frontend"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			require.NoError(t, skills.WriteContext(tmp, "chat-x", tc.platform, nil, skills.AgentConfig{}))
+			data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
+			require.NoError(t, err)
+			assert.Contains(t, string(data), tc.want)
+		})
+	}
+}
+
 func TestWriteContext_GenericInstructionWithoutSoul(t *testing.T) {
 	tmp := t.TempDir()
-	require.NoError(t, skills.WriteContext(tmp, "chat-3", nil, skills.AgentConfig{}))
+	require.NoError(t, skills.WriteContext(tmp, "chat-3", skills.PlatformTelegram, nil, skills.AgentConfig{}))
 	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "You are a helpful AI assistant running inside Pitu.")
@@ -153,7 +174,7 @@ func TestWriteContext_GenericInstructionWithoutSoul(t *testing.T) {
 func TestWriteContext_MinimalInstructionWithSoul(t *testing.T) {
 	tmp := t.TempDir()
 	agent := skills.AgentConfig{Soul: "Be concise."}
-	require.NoError(t, skills.WriteContext(tmp, "chat-4", nil, agent))
+	require.NoError(t, skills.WriteContext(tmp, "chat-4", skills.PlatformTelegram, nil, agent))
 	data, err := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	require.NoError(t, err)
 	content := string(data)

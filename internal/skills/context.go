@@ -6,24 +6,32 @@ import (
 	"strings"
 )
 
+// Platform labels written into AGENTS.md so the agent and any operator reading
+// the file know which frontend a chat came from. New frontends add a constant
+// here and pass it at the WriteContext call site.
+const (
+	PlatformTelegram = "Telegram"
+	PlatformDiscord  = "Discord"
+)
+
 // WriteContext always refreshes AGENTS.md with the current agent config and skills,
 // and creates CONTEXT.md (the agent's mutable memory scratch-pad) only if absent.
 // Splitting these files means identity/persona changes are picked up on the next message
 // without wiping any notes the agent has accumulated in CONTEXT.md.
-func WriteContext(dir, chatID string, discovered []Skill, agent AgentConfig) error {
-	if err := writeSystem(dir, chatID, discovered, agent); err != nil {
+func WriteContext(dir, chatID, platform string, discovered []Skill, agent AgentConfig) error {
+	if err := writeSystem(dir, chatID, platform, discovered, agent); err != nil {
 		return err
 	}
 	return writeMemory(dir)
 }
 
-func writeSystem(dir, chatID string, discovered []Skill, agent AgentConfig) error {
+func writeSystem(dir, chatID, platform string, discovered []Skill, agent AgentConfig) error {
 	catalog := BuildCatalog(discovered)
 
 	var b strings.Builder
 	b.WriteString("# Agent Context\n\n")
 	b.WriteString("**Chat ID:** " + chatID + "\n")
-	b.WriteString("**Platform:** Telegram\n")
+	b.WriteString("**Platform:** " + platform + "\n")
 
 	if agent.Identity != "" {
 		b.WriteString("\n## Identity\n\n")

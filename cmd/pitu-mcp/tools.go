@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,9 +18,18 @@ type toolHandlers struct {
 	chatID     string
 	role       string
 	subAgentID string
+
+	// sendMessageCalled latches true on the first handleSendMessage call.
+	// pitu-mcp is spawned fresh per `opencode run`, so process-local state
+	// scopes to exactly one user turn — enforcing the "exactly once" rule
+	// structurally rather than trusting the model to obey AGENTS.md.
+	sendMessageCalled atomic.Bool
 }
 
 func (h *toolHandlers) handleSendMessage(text, sender string) (string, error) {
+	if !h.sendMessageCalled.CompareAndSwap(false, true) {
+		return "", fmt.Errorf("sendMessage was already called this turn. Pitu delivers exactly one reply per inbound message. Do not call sendMessage again; finish your turn now")
+	}
 	msg := ipc.OutboundMessage{
 		ChatID:     h.chatID,
 		Text:       text,

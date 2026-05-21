@@ -274,7 +274,7 @@ func main() {
 		// Write CONTEXT.md on first boot
 		memDir := filepath.Join(dataDir, chatID, "memory")
 		os.MkdirAll(memDir, 0700)
-		skills.WriteContext(memDir, chatID, discovered, agentCfg)
+		skills.WriteContext(memDir, chatID, skills.PlatformTelegram, discovered, agentCfg)
 
 		q.Enqueue(chatID, func() {
 			if err := mgr.Dispatch(ctx, chatID, msg); err != nil {

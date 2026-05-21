@@ -58,6 +58,53 @@ func TestHandleListTasks_ReturnsPath(t *testing.T) {
 	assert.Equal(t, `{"path":"/workspace/memory/tasks.json"}`, result)
 }
 
+func TestHandleSendMessage_SecondCallRejected(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "messages"), 0755))
+
+	h := &toolHandlers{ipcDir: tmp, chatID: "chat-1"}
+	_, err := h.handleSendMessage("first", "")
+	require.NoError(t, err)
+
+	_, err = h.handleSendMessage("second", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already called")
+
+	entries, _ := os.ReadDir(filepath.Join(tmp, "messages"))
+	require.Len(t, entries, 1, "second call must not write a file")
+}
+
+func TestHandleSendMessage_IndependentBetweenHandlers(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(a, "messages"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(b, "messages"), 0755))
+
+	ha := &toolHandlers{ipcDir: a, chatID: "chat-a"}
+	hb := &toolHandlers{ipcDir: b, chatID: "chat-b"}
+
+	_, err := ha.handleSendMessage("hi from a", "")
+	require.NoError(t, err)
+	_, err = hb.handleSendMessage("hi from b", "")
+	require.NoError(t, err, "separate handler must have its own guard")
+}
+
+func TestHandleSendMessage_GuardDoesNotAffectOtherTools(t *testing.T) {
+	tmp := t.TempDir()
+	for _, sub := range []string{"messages", "tasks", "reactions"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmp, sub), 0755))
+	}
+
+	h := &toolHandlers{ipcDir: tmp, chatID: "chat-1"}
+	_, err := h.handleSendMessage("only reply", "")
+	require.NoError(t, err)
+
+	_, err = h.handleScheduleTask("daily", "0 9 * * *", "summarise")
+	require.NoError(t, err, "scheduleTask must not be blocked by sendMessage guard")
+
+	_, err = h.handleReactToMessage("42", "👍")
+	require.NoError(t, err, "reactToMessage must not be blocked by sendMessage guard")
+}
+
 func TestHandleSpawnAgent_WritesAgentFile(t *testing.T) {
 	tmp := t.TempDir()
 	for _, sub := range []string{"messages", "tasks", "groups", "agents"} {
