@@ -196,7 +196,7 @@ Guard the entire Discord block with a check that `cfg.Discord.BotToken` is non-e
    - Calls `SendTyping` on the Sender; log but do not fatal on error.
    - Builds an `ipc.InboundMessage` with the channel ID, username, message text, and message ID from the event.
    - Saves the message to the store with the same fields as the Telegram path.
-   - Ensures the memory directory exists for this chat ID, then calls `skills.WriteContext`.
+   - Ensures the memory directory exists for this chat ID, then calls `skills.WriteContext` passing `skills.PlatformDiscord` as the platform argument so `AGENTS.md` correctly identifies the frontend.
    - Enqueues a `mgr.Dispatch` call on `q` using the channel ID as the queue key.
 
 Use the analogous Telegram handler already in `main.go` as the structural template.
