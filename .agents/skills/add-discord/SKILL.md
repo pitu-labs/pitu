@@ -145,7 +145,15 @@ Unlike the Telegram poller, there is no explicit reconnection loop: discordgo ma
 
 ### Phase 5 — Sender (`internal/discord/sender.go`)
 
-Create `internal/discord/sender.go`. The Sender wraps its own `discordgo.Session`, separate from the Poller session — discordgo's common usage pattern avoids sharing mutable session state across goroutines. The `NewSender(token string)` constructor creates and opens the session; return an error if either step fails. Expose a `Close()` method that closes the session on shutdown.
+Create `internal/discord/sender.go`. The Poller owns the Gateway connection because it needs `MessageCreate` events. The Sender makes outbound HTTP REST calls only — it does not open a Gateway connection.
+
+The Sender keeps its own `discordgo.Session` to isolate the REST client's state from the Poller's; the two sessions never share a Gateway connection because the Sender does not open one.
+
+**Constructor (`NewSender(token string)`):** call `discordgo.New` with the token prefixed by `"Bot "` and return the wrapped session. Return an error only if `discordgo.New` itself fails.
+
+**Do not call `Session.Open()` in the Sender constructor.** REST calls (`ChannelMessageSend`, `ChannelTyping`, `MessageReactionAdd`) work without a Gateway connection; opening here would create a second Gateway session for the same bot token alongside the Poller's, which Discord may reject as a session conflict and which serves no purpose for a REST-only client. The constructor body is exactly: create the session, return it — nothing else.
+
+**`Close()` method:** expose a `Close()` method with an empty body. Add a single-line comment noting it is a no-op stub kept for API symmetry — the harness `defer`s `Close()` on every Sender uniformly, so keeping the method present even though it does nothing keeps the wiring in `cmd/pitu/main.go` consistent across frontends whose senders may require real teardown.
 
 The Sender exposes the same three operations as the Telegram sender:
 
@@ -158,6 +166,10 @@ The Sender exposes the same three operations as the Telegram sender:
 For `ReactToMessage`: the harness `ReactionFile` carries `MessageID` as an integer; convert it to its decimal string representation (a Discord snowflake) before passing it to the API call.
 
 **Emoji format note:** Standard Unicode emoji (e.g. `👍`) pass through as-is. Custom guild emoji use the format `name:id` (e.g. `thumbsup:123456789`).
+
+**Common mistakes**
+
+- **Don't open a Gateway connection in the Sender.** discordgo's `Session.Open()` establishes a WebSocket to Discord's Gateway. REST methods (`ChannelMessageSend`, `ChannelTyping`, `MessageReactionAdd`) do not need that connection. Opening here creates a duplicate Gateway session for the same bot token, which Discord may close as a conflict and which serves no purpose. Constructor body should be: create the session, return it — nothing else.
 
 ---
 
@@ -176,7 +188,7 @@ Apply your Phase 0 findings:
 Guard the entire Discord block with a check that `cfg.Discord.BotToken` is non-empty. Inside the guard, perform these steps in order:
 
 1. Construct the Sender; if it fails, log a fatal error.
-2. Defer the Sender's `Close()` call for graceful shutdown.
+2. Defer the Sender's `Close()` call. It is a no-op stub today (the Sender holds no Gateway connection to tear down), but deferring it uniformly keeps the wiring symmetric with frontends whose senders may need real teardown.
 3. Construct the Poller; if it fails, log a fatal error.
 4. Start the Poller in a goroutine, passing a handler function that:
    - Runs the channel allowlist check (see 6c). If the channel is not allowed, log the rejection and return.
