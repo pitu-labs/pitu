@@ -311,7 +311,7 @@ func handleCapabilityRequest(dataDir string, req ipc.CapabilityRequest) {
 		ipcRoot := filepath.Join(dataDir, req.ChatID, "ipc")
 		resp := ipc.CapabilityResponse{RequestID: req.RequestID}
 		switch req.Capability {
-		case "noop":
+		case ipc.CapabilityNoop:
 			resp.Result = map[string]any{"echo": req.Params["msg"]}
 		default:
 			resp.Error = fmt.Sprintf("unknown capability %q", req.Capability)

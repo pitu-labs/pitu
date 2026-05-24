@@ -40,7 +40,7 @@ func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error
 	if chatID == "" {
 		return fmt.Errorf("ipc: RegisterDir called with empty chatID for %s", ipcRootDir)
 	}
-	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions", "requests"} {
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions", RequestsDir} {
 		dir := filepath.Join(ipcRootDir, sub)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("ipc: mkdir %s: %w", dir, err)
@@ -60,7 +60,7 @@ func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error
 	// responses/ is written by the harness and read by pitu-mcp; the harness must
 	// NOT watch it (it would try to route+delete its own responses before pitu-mcp
 	// reads them). Create it so WriteResponse has a destination.
-	respDir := filepath.Join(ipcRootDir, "responses")
+	respDir := filepath.Join(ipcRootDir, ResponsesDir)
 	if err := os.MkdirAll(respDir, 0700); err != nil {
 		return fmt.Errorf("ipc: mkdir responses: %w", err)
 	}

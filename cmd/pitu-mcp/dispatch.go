@@ -17,7 +17,7 @@ import (
 // Result, or an error carrying the response Error/ErrorCode.
 func (h *toolHandlers) dispatchCapability(capability, tool string, params map[string]any, timeout time.Duration) (any, error) {
 	requestID := uuid.NewString()
-	respDir := filepath.Join(h.ipcDir, "responses")
+	respDir := filepath.Join(h.ipcDir, ipc.ResponsesDir)
 	if err := os.MkdirAll(respDir, 0700); err != nil {
 		return nil, fmt.Errorf("pitu-mcp: mkdir responses: %w", err)
 	}
@@ -30,7 +30,7 @@ func (h *toolHandlers) dispatchCapability(capability, tool string, params map[st
 		Params:     params,
 		ChatID:     h.chatID,
 	}
-	if err := h.writeIPC("requests", req); err != nil {
+	if err := h.writeIPC(ipc.RequestsDir, req); err != nil {
 		return nil, err
 	}
 

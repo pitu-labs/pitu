@@ -7,6 +7,23 @@ import (
 	"path/filepath"
 )
 
+// IPC subdirectory names for the capability request/response channel. Declared as
+// constants because they are a hard-coded invariant shared across the harness
+// (watcher, router, WriteResponse) and pitu-mcp (dispatchCapability); a divergent
+// spelling in any one place would silently break the channel.
+const (
+	RequestsDir  = "requests"
+	ResponsesDir = "responses"
+)
+
+// Capability names. These are the shared vocabulary between pitu-mcp (which registers
+// a capability's tools) and the harness (which dispatches its requests). Both sides
+// reference the same constant so a rename can't drift the two out of sync. New
+// capabilities (gmail, gcalendar, …) add their name here.
+const (
+	CapabilityNoop = "noop"
+)
+
 // CapabilityRequest is written by pitu-mcp to ipc/requests/. It asks the harness
 // to perform a capability-backed operation (e.g. a Gmail API call) and return the
 // result. The harness reads it, dispatches by Capability, and writes a
@@ -33,7 +50,7 @@ type CapabilityResponse struct {
 // responses subdir). responses/ is NOT watched by the harness — pitu-mcp inside
 // the container watches it. The harness creates the dir if missing.
 func WriteResponse(ipcRoot string, resp CapabilityResponse) error {
-	respDir := filepath.Join(ipcRoot, "responses")
+	respDir := filepath.Join(ipcRoot, ResponsesDir)
 	if err := os.MkdirAll(respDir, 0700); err != nil {
 		return fmt.Errorf("ipc: mkdir responses: %w", err)
 	}

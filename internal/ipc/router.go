@@ -86,7 +86,7 @@ func (r *Router) Route(subdir, path, chatID, role, subAgentID string) error {
 		}
 		rf.ChatID = chatID
 		r.onReaction(rf)
-	case "requests":
+	case RequestsDir:
 		if r.onCapability == nil {
 			return fmt.Errorf("ipc: capability request received but no handler is registered")
 		}
