@@ -8,14 +8,58 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/pitu-dev/pitu/internal/ipc"
 )
-
-// knownCapabilities lists every capability pitu-mcp can register tools for.
-// Later PRs append "gmail", "gcalendar". listCapabilities reports this as "available".
-var knownCapabilities = []string{"noop"}
 
 // defaultCapabilityTimeout bounds how long a capability tool waits for the harness.
 const defaultCapabilityTimeout = 30 * time.Second
+
+// capabilityTool describes one MCP tool belonging to a capability. Bundling the
+// param schema and handler with the name/description keeps a tool's full definition
+// in one place rather than scattered across registration code — important once a
+// capability (e.g. gmail) exposes many tools. The handler typically calls
+// h.dispatchCapability to round-trip through the harness.
+type capabilityTool struct {
+	name        string
+	description string
+	params      []mcp.ToolOption
+	handler     func(h *toolHandlers, req mcp.CallToolRequest) (any, error)
+}
+
+// capability groups the tools registered when a named capability is enabled for a chat.
+type capability struct {
+	name  string
+	tools []capabilityTool
+}
+
+// capabilityRegistry is the single source of truth for which capabilities exist and
+// what tools each registers. New capabilities (gmail, gcalendar, …) append an entry.
+var capabilityRegistry = []capability{
+	{
+		name: ipc.CapabilityNoop, // development/validation only
+		tools: []capabilityTool{
+			{
+				name:        "noop.ping",
+				description: "Validation tool: echoes its message back through the harness request/response IPC path.",
+				params:      []mcp.ToolOption{mcp.WithString("msg", mcp.Required(), mcp.Description("Message to echo"))},
+				handler: func(h *toolHandlers, req mcp.CallToolRequest) (any, error) {
+					msg := req.GetString("msg", "")
+					return h.dispatchCapability(ipc.CapabilityNoop, "noop.ping", map[string]any{"msg": msg}, defaultCapabilityTimeout)
+				},
+			},
+		},
+	},
+}
+
+// knownCapabilityNames returns every capability name the registry knows about.
+// listCapabilities reports this as "available".
+func knownCapabilityNames() []string {
+	out := make([]string, len(capabilityRegistry))
+	for i, c := range capabilityRegistry {
+		out[i] = c.name
+	}
+	return out
+}
 
 func parseCapabilities(env string) []string {
 	var out []string
@@ -37,40 +81,44 @@ func isCapabilityEnabled(caps []string, name string) bool {
 	return false
 }
 
-// registerCapabilityTools registers the always-on listCapabilities tool plus the
-// tool families for each enabled capability. Called from buildServer.
+// registerCapabilityTools registers the always-on listCapabilities tool plus the tool
+// families for each enabled capability, driven by capabilityRegistry. Called from buildServer.
 func registerCapabilityTools(s *server.MCPServer, h *toolHandlers, enabled []string) {
 	// listCapabilities — always available, read-only.
 	s.AddTool(mcp.NewTool("listCapabilities",
 		mcp.WithDescription("List the capabilities enabled for this chat and which are available to enable. Use this to honestly report what you can and cannot do."),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		payload := map[string]any{
+		return jsonToolResult(map[string]any{
 			"enabled":   enabled,
-			"available": knownCapabilities,
-		}
-		data, err := json.Marshal(payload)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		return mcp.NewToolResultText(string(data)), nil
+			"available": knownCapabilityNames(),
+		})
 	})
 
-	// noop capability — development/validation only.
-	if isCapabilityEnabled(enabled, "noop") {
-		s.AddTool(mcp.NewTool("noop.ping",
-			mcp.WithDescription("Validation tool: echoes its message back through the harness request/response IPC path."),
-			mcp.WithString("msg", mcp.Required(), mcp.Description("Message to echo")),
-		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			msg := req.GetString("msg", "")
-			result, err := h.dispatchCapability("noop", "noop.ping", map[string]any{"msg": msg}, defaultCapabilityTimeout)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			data, err := json.Marshal(result)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return mcp.NewToolResultText(string(data)), nil
-		})
+	for _, cap := range capabilityRegistry {
+		if !isCapabilityEnabled(enabled, cap.name) {
+			continue
+		}
+		for _, tool := range cap.tools {
+			tool := tool // capture per iteration
+			opts := append([]mcp.ToolOption{mcp.WithDescription(tool.description)}, tool.params...)
+			s.AddTool(mcp.NewTool(tool.name, opts...),
+				func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					result, err := tool.handler(h, req)
+					if err != nil {
+						return mcp.NewToolResultError(err.Error()), nil
+					}
+					return jsonToolResult(result)
+				})
+		}
 	}
+}
+
+// jsonToolResult marshals v to JSON and wraps it as an MCP text result, matching the
+// result convention used by the other pitu-mcp tools in server.go.
+func jsonToolResult(v any) (*mcp.CallToolResult, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(string(data)), nil
 }
