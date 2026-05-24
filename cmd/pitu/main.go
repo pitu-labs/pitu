@@ -27,6 +27,10 @@ func main() {
 		runService(os.Args[2:])
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "capabilities" {
+		runCapabilities(os.Args[2:])
+		return
+	}
 	cfgPath := os.Getenv("PITU_CONFIG")
 	if cfgPath == "" {
 		home, _ := os.UserHomeDir()
