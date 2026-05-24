@@ -194,6 +194,9 @@ func main() {
 			}
 		},
 	)
+	router.SetCapabilityHandler(func(c ipc.CapabilityRequest) {
+		handleCapabilityRequest(dataDir, c)
+	})
 
 	// IPC watcher — dynamically registers new container dirs as they start
 	w, err := ipc.NewWatcher(router)
@@ -204,6 +207,14 @@ func main() {
 	// Container manager — warm pool; calls w.RegisterDir on each new container
 	mgr = container.NewManager(cfg, discovered, w, nil)
 	mgr.SetDirs(dataDir, skillsMount)
+	mgr.SetCapabilitiesFunc(func(chatID string) []string {
+		caps, err := st.GetCapabilities(chatID)
+		if err != nil {
+			log.Printf("pitu: capabilities lookup for %s: %v", chatID, err)
+			return nil
+		}
+		return caps
+	})
 
 	// Queue — per-chat FIFO, global concurrency cap
 	q = queue.New(cfg.Container.MaxConcurrent)
@@ -286,6 +297,30 @@ func main() {
 			}
 		})
 	})
+}
+
+// handleCapabilityRequest dispatches a capability request to its handler and writes
+// the response. It is the harness side of the request/response IPC primitive. It runs
+// the work in a goroutine so a slow capability never blocks the IPC watch loop.
+//
+// PR 1 implements only the "noop" capability (echoes params back) to validate the
+// primitive end-to-end. Real capabilities (gmail, gcalendar) register handlers in
+// later PRs by adding cases here.
+func handleCapabilityRequest(dataDir string, req ipc.CapabilityRequest) {
+	go func() {
+		ipcRoot := filepath.Join(dataDir, req.ChatID, "ipc")
+		resp := ipc.CapabilityResponse{RequestID: req.RequestID}
+		switch req.Capability {
+		case "noop":
+			resp.Result = map[string]any{"echo": req.Params["msg"]}
+		default:
+			resp.Error = fmt.Sprintf("unknown capability %q", req.Capability)
+			resp.ErrorCode = "capability_disabled"
+		}
+		if err := ipc.WriteResponse(ipcRoot, resp); err != nil {
+			log.Printf("pitu: capability %s: write response: %v", req.RequestID, err)
+		}
+	}()
 }
 
 // isAllowed reports whether chatID is permitted to use the bot.
