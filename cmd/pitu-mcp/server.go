@@ -7,7 +7,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func buildServer(h *toolHandlers) *server.MCPServer {
+func buildServer(h *toolHandlers, capabilities []string) *server.MCPServer {
 	s := server.NewMCPServer("pitu-mcp", "1.0.0")
 
 	s.AddTool(mcp.NewTool("sendMessage",
@@ -104,5 +104,6 @@ func buildServer(h *toolHandlers) *server.MCPServer {
 		return mcp.NewToolResultText(result), nil
 	})
 
+	registerCapabilityTools(s, h, capabilities)
 	return s
 }
