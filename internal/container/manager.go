@@ -43,6 +43,10 @@ type Manager struct {
 	watcher    interface{ RegisterDir(string, string, string, string) error } // ipc.Watcher, accepts nil
 	onExpire   func(chatID string)
 
+	// capabilitiesFor returns the enabled capabilities for a chat; may be nil
+	// (then no PITU_CAPABILITIES is injected). Set via SetCapabilitiesFunc.
+	capabilitiesFor func(chatID string) []string
+
 	startMu sync.Mutex // serialises startContainer; prevents duplicate starts on concurrent messages
 
 	// Dirs used by all containers
@@ -60,6 +64,13 @@ func (m *Manager) SetDirs(dataDir, skillsDir string) {
 	m.skillsDir = skillsDir
 }
 
+// SetCapabilitiesFunc injects the per-chat capability lookup. Call before Dispatch.
+// When set, the returned capabilities are injected as PITU_CAPABILITIES on each
+// opencode exec so pitu-mcp registers the matching tool families.
+func (m *Manager) SetCapabilitiesFunc(f func(chatID string) []string) {
+	m.capabilitiesFor = f
+}
+
 // Dispatch handles an inbound message: reuses a warm container or starts a new one,
 // writes the input file, then runs OpenCode inside the container.
 func (m *Manager) Dispatch(ctx context.Context, chatID string, msg ipc.InboundMessage) error {
@@ -74,7 +85,7 @@ func (m *Manager) Dispatch(ctx context.Context, chatID string, msg ipc.InboundMe
 	if err != nil {
 		return err
 	}
-	return m.execOpenCode(ctx, handle, inputPath)
+	return m.execOpenCode(ctx, chatID, handle, inputPath)
 }
 
 func (m *Manager) ensureContainer(ctx context.Context, chatID string) (*Handle, error) {
@@ -222,8 +233,12 @@ func (m *Manager) startSubAgentContainer(ctx context.Context, chatID, role, subA
 	return handle, nil
 }
 
-func (m *Manager) execOpenCode(ctx context.Context, handle *Handle, inputPath string) error {
-	args := m.BuildExecArgs(handle.ID, inputPath, handle.hasSession)
+func (m *Manager) execOpenCode(ctx context.Context, chatID string, handle *Handle, inputPath string) error {
+	var caps []string
+	if m.capabilitiesFor != nil {
+		caps = m.capabilitiesFor(chatID)
+	}
+	args := m.BuildExecArgs(handle.ID, inputPath, handle.hasSession, caps)
 	out, err := exec.CommandContext(ctx, "podman", args...).CombinedOutput()
 	if len(out) > 0 {
 		log.Printf("opencode output (container %s): %s", handle.ID[:12], out)
@@ -302,12 +317,20 @@ func (m *Manager) BuildSubAgentRunArgs(chatID, subAgentID, role, ipcDir, memDir,
 	}
 }
 
-// BuildExecArgs returns the podman exec arguments for running OpenCode on a message. Public for testability.
-func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession bool) []string {
+// BuildExecArgs returns the podman exec arguments for running OpenCode on a message.
+// capabilities, when non-empty, are injected as PITU_CAPABILITIES so pitu-mcp (spawned
+// fresh by this exec) registers the corresponding tools. Reading capabilities at exec
+// time — not container start — is what makes a newly enabled capability visible on the
+// next message. Public for testability.
+func (m *Manager) BuildExecArgs(containerID, inputPath string, continueSession bool, capabilities []string) []string {
 	containerPath := "/workspace/ipc/input/" + filepath.Base(inputPath)
 	// --workdir places OpenCode in the memory dir so it discovers AGENTS.md via
 	// its standard upward traversal — no vendor-specific config needed.
-	args := []string{"exec", "--workdir", "/workspace/memory", containerID, "opencode", "run"}
+	args := []string{"exec", "--workdir", "/workspace/memory"}
+	if len(capabilities) > 0 {
+		args = append(args, "--env", "PITU_CAPABILITIES="+strings.Join(capabilities, ","))
+	}
+	args = append(args, containerID, "opencode", "run")
 	if continueSession {
 		args = append(args, "-c")
 	}

@@ -42,6 +42,19 @@ For the four-location model, discovery rules, and merge semantics, see [`docs/AR
 
 ---
 
+## Capabilities
+
+Where skills shape *how the agent thinks*, **capabilities** give the agent *things it can do* — agent-callable tools whose work is performed by the harness, not the container. The agent calls a tool (e.g. searching email or creating a calendar event); the harness makes the actual external call and returns the result over filesystem IPC. Credentials and API access live on the host and never enter the agent's container.
+
+Two properties make capabilities safe to grant:
+
+- **Per-chat gating.** A capability is enabled for specific chats by the operator (`pitu capabilities enable --chat <id> --capability <name>`). The agent sees only the tools for capabilities its chat has enabled — context stays lean and a chat can't use what it wasn't granted.
+- **Operator-controlled, never self-granted.** The agent can *list* its capabilities (to honestly report what it can and cannot do) but cannot enable them. Granting is an operator action, stored in Pitú's database and injected per message.
+
+Capabilities ride a synchronous request/response IPC primitive: the agent's tool call becomes a request file the harness fulfills and answers. Adding a new capability (Gmail, Calendar, …) means registering its tools and a harness-side handler — no new transport, no credentials in the container. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the request/response protocol and the "Adding a new capability" guide.
+
+---
+
 ## Security by smallness
 
 A small codebase is an auditable codebase. Pitú's security posture is a direct consequence of its size constraint:

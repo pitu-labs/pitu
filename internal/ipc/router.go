@@ -7,15 +7,25 @@ import (
 )
 
 type Router struct {
-	onMessage  func(OutboundMessage)
-	onTask     func(TaskFile)
-	onGroup    func(GroupFile)
-	onAgent    func(AgentFile)
-	onReaction func(ReactionFile)
+	onMessage    func(OutboundMessage)
+	onTask       func(TaskFile)
+	onGroup      func(GroupFile)
+	onAgent      func(AgentFile)
+	onReaction   func(ReactionFile)
+	onCapability func(CapabilityRequest)
 }
 
 func NewRouter(onMessage func(OutboundMessage), onTask func(TaskFile), onGroup func(GroupFile), onAgent func(AgentFile), onReaction func(ReactionFile)) *Router {
 	return &Router{onMessage: onMessage, onTask: onTask, onGroup: onGroup, onAgent: onAgent, onReaction: onReaction}
+}
+
+// SetCapabilityHandler registers the handler for capability requests (ipc/requests/).
+// It is set separately from the constructor because, unlike the five fire-and-forget
+// outbound handlers, capability dispatch is a request/response path that not every
+// deployment needs. A router with no capability handler rejects "requests" files with
+// an error rather than dropping them silently.
+func (r *Router) SetCapabilityHandler(fn func(CapabilityRequest)) {
+	r.onCapability = fn
 }
 
 // maxIPCFileSize is the upper bound on IPC file size (1 MB). Files larger than
@@ -76,6 +86,16 @@ func (r *Router) Route(subdir, path, chatID, role, subAgentID string) error {
 		}
 		rf.ChatID = chatID
 		r.onReaction(rf)
+	case RequestsDir:
+		if r.onCapability == nil {
+			return fmt.Errorf("ipc: capability request received but no handler is registered")
+		}
+		var c CapabilityRequest
+		if err := json.Unmarshal(data, &c); err != nil {
+			return fmt.Errorf("ipc: unmarshal capability request: %w", err)
+		}
+		c.ChatID = chatID // override: never trust container-supplied chatID
+		r.onCapability(c)
 	default:
 		return fmt.Errorf("ipc: unknown subdir %q", subdir)
 	}

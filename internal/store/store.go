@@ -53,6 +53,13 @@ func (s *Store) migrate() error {
 			name        TEXT PRIMARY KEY,
 			description TEXT NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS chat_capabilities (
+			chat_id     TEXT NOT NULL,
+			capability  TEXT NOT NULL,
+			enabled_at  DATETIME NOT NULL,
+			PRIMARY KEY (chat_id, capability)
+		);
+		CREATE INDEX IF NOT EXISTS idx_caps_chat ON chat_capabilities(chat_id);
 	`)
 	return err
 }

@@ -72,6 +72,15 @@ When an agent requests a sub-agent spawn, the `role` and `prompt` fields from th
 
 Both sanitizations are applied at the `SpawnSubAgent` entry point, before the values are written to any file or passed as a shell argument.
 
+### Capability Request/Response IPC
+
+The request/response primitive (used by agent-callable capabilities such as Gmail) preserves the existing trust rules:
+
+- **Path-derived chat ID.** `CapabilityRequest.ChatID` is overwritten from the directory path in `Router.Route`, exactly like every other IPC type. A container cannot route a capability request to another chat.
+- **Harness-side execution.** Capability handlers run in the harness, not the container. Credentials and external API access live on the host; the container only ever sees the request it wrote and the response the harness returns. (Credential handling itself arrives with the capability PRs that build on this primitive; this layer establishes the boundary.)
+- **No privilege escalation.** The agent cannot enable its own capabilities. The only capability-introspection tool is the read-only `listCapabilities`. Enabling a capability requires operator action via `pitu capabilities enable` — the enabled set is read from the `chat_capabilities` table and injected as `PITU_CAPABILITIES` at exec time, so the agent's tool surface is operator-controlled, not agent-controlled.
+- **Bounded blocking.** Each capability call has a timeout; a hung handler returns a timeout error to the agent rather than wedging the turn. The harness dispatches each request in its own goroutine so a slow capability never blocks the IPC watch loop for other chats.
+
 ---
 
 ## Access Control

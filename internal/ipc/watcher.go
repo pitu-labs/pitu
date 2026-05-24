@@ -32,14 +32,15 @@ func NewWatcher(r *Router) (*Watcher, error) {
         }
         return &Watcher{router: r, fsWatcher: fw, metas: make(map[string]dirMeta)}, nil
 }
-// RegisterDir adds ipcRootDir/messages/, /tasks/, /groups/, /agents/, and /reactions/ to the watch list.
+// RegisterDir adds ipcRootDir/messages/, /tasks/, /groups/, /agents/, /reactions/, and
+// /requests/ to the watch list, and creates (without watching) /responses/.
 // chatID is the authoritative chat ID for this IPC directory (derived from the filesystem path).
 // Safe to call at any time, including after Watch has started.
 func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error {
 	if chatID == "" {
 		return fmt.Errorf("ipc: RegisterDir called with empty chatID for %s", ipcRootDir)
 	}
-	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions"} {
+	for _, sub := range []string{"messages", "tasks", "groups", "agents", "reactions", RequestsDir} {
 		dir := filepath.Join(ipcRootDir, sub)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("ipc: mkdir %s: %w", dir, err)
@@ -55,6 +56,16 @@ func (w *Watcher) RegisterDir(ipcRootDir, chatID, role, subAgentID string) error
 		w.mu.Lock()
 		w.metas[dir] = dirMeta{chatID: chatID, role: role, subAgentID: subAgentID}
 		w.mu.Unlock()
+	}
+	// responses/ is written by the harness and read by pitu-mcp; the harness must
+	// NOT watch it (it would try to route+delete its own responses before pitu-mcp
+	// reads them). Create it so WriteResponse has a destination.
+	respDir := filepath.Join(ipcRootDir, ResponsesDir)
+	if err := os.MkdirAll(respDir, 0700); err != nil {
+		return fmt.Errorf("ipc: mkdir responses: %w", err)
+	}
+	if err := os.Chmod(respDir, 0700); err != nil {
+		return fmt.Errorf("ipc: chmod responses: %w", err)
 	}
 	return nil
 }

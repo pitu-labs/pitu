@@ -354,6 +354,73 @@ func TestWatcher_RegisterDir_RemediatesExistingLoosePerms(t *testing.T) {
 	}
 }
 
+func TestRegisterDir_CreatesRequestsAndResponses(t *testing.T) {
+	root := t.TempDir()
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	w, err := ipc.NewWatcher(r)
+	require.NoError(t, err)
+
+	require.NoError(t, w.RegisterDir(root, "chat-1", "", ""))
+
+	for _, sub := range []string{"requests", "responses"} {
+		info, statErr := os.Stat(filepath.Join(root, sub))
+		require.NoError(t, statErr, "expected %s to exist", sub)
+		assert.True(t, info.IsDir())
+		assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
+	}
+}
+
+func TestRouter_CapabilityRequest_OverridesChatID(t *testing.T) {
+	root := t.TempDir()
+	reqDir := filepath.Join(root, "requests")
+	require.NoError(t, os.MkdirAll(reqDir, 0700))
+
+	// container-supplied chat_id is a forgery; router must overwrite from path arg.
+	body := `{"request_id":"r1","capability":"noop","tool":"noop.ping","params":{},"chat_id":"FORGED"}`
+	reqPath := filepath.Join(reqDir, "1.json")
+	require.NoError(t, os.WriteFile(reqPath, []byte(body), 0600))
+
+	var got ipc.CapabilityRequest
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	r.SetCapabilityHandler(func(c ipc.CapabilityRequest) { got = c })
+
+	require.NoError(t, r.Route("requests", reqPath, "real-chat", "", ""))
+	assert.Equal(t, "real-chat", got.ChatID)
+	assert.Equal(t, "noop.ping", got.Tool)
+}
+
+func TestRouter_CapabilityRequest_NoHandler_Errors(t *testing.T) {
+	root := t.TempDir()
+	reqDir := filepath.Join(root, "requests")
+	require.NoError(t, os.MkdirAll(reqDir, 0700))
+	reqPath := filepath.Join(reqDir, "1.json")
+	require.NoError(t, os.WriteFile(reqPath, []byte(`{"request_id":"r1"}`), 0600))
+
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	// No SetCapabilityHandler call — routing a request must error, not panic.
+	err := r.Route("requests", reqPath, "real-chat", "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no handler")
+}
+
 func TestRouter_OverridesForgedChatID_Reactions(t *testing.T) {
 	var gotReaction *ipc.ReactionFile
 	r := ipc.NewRouter(

@@ -16,6 +16,7 @@ func main() {
 	}
 	role := os.Getenv("PITU_ROLE")
 	subAgentID := os.Getenv("PITU_SUB_AGENT_ID")
+	capabilities := parseCapabilities(os.Getenv("PITU_CAPABILITIES"))
 
 	h := &toolHandlers{
 		ipcDir:     ipcDir,
@@ -23,7 +24,7 @@ func main() {
 		role:       role,
 		subAgentID: subAgentID,
 	}
-	s := buildServer(h)
+	s := buildServer(h, capabilities)
 
 	if err := server.ServeStdio(s); err != nil {
 		log.Fatalf("pitu-mcp: %v", err)

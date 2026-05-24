@@ -74,7 +74,7 @@ func TestManager_GeneratesCorrectPodmanRunArgs(t *testing.T) {
 func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
 	cfg := &config.Config{}
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false, nil)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "opencode run")
 	assert.Contains(t, joined, "-f /workspace/ipc/input/msg.json")
@@ -84,10 +84,26 @@ func TestBuildExecArgs_NoCFlag_WhenNoSession(t *testing.T) {
 func TestBuildExecArgs_CFlagPresent_WhenHasSession(t *testing.T) {
 	cfg := &config.Config{}
 	m := container.NewManager(cfg, nil, nil, nil)
-	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", true)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", true, nil)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, " -c ")
 	assert.Contains(t, joined, "-f /workspace/ipc/input/msg.json")
+}
+
+func TestBuildExecArgs_InjectsCapabilities(t *testing.T) {
+	cfg := &config.Config{}
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false, []string{"gmail", "gcalendar"})
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "--env PITU_CAPABILITIES=gmail,gcalendar")
+}
+
+func TestBuildExecArgs_NoCapabilities_NoEnvFlag(t *testing.T) {
+	cfg := &config.Config{}
+	m := container.NewManager(cfg, nil, nil, nil)
+	args := m.BuildExecArgs("ctr-abc", "/host/ipc/input/msg.json", false, nil)
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "PITU_CAPABILITIES")
 }
 
 func TestManager_BuildRunArgs_ContainsOpenCodeMount(t *testing.T) {
