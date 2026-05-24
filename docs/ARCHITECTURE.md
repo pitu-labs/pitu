@@ -116,8 +116,40 @@ All harness ↔ agent communication flows through a mounted directory (`/workspa
 | `groups/` | `GroupFile` | Register a group identity |
 | `agents/` | `AgentFile` | Spawn a sub-agent |
 | `reactions/` | `ReactionFile` | Set an emoji reaction on a message |
+| `requests/` | `CapabilityRequest` | Ask the harness to perform a capability operation and return a result |
 
 **Trust rule:** the harness derives `chat_id` from the directory path (harness-controlled), then overwrites whatever `chat_id` the container wrote. Containers cannot route to arbitrary chats.
+
+### Synchronous Capability Requests (request/response IPC)
+
+Most IPC is one-way (agent writes, harness acts). Capability tools (e.g. Gmail) need a
+**result**, so they use a request/response pair:
+
+| Subdir | Direction | Watched by harness? |
+|--------|-----------|---------------------|
+| `requests/` | agent → harness (`CapabilityRequest`) | yes |
+| `responses/` | harness → agent (`CapabilityResponse`) | no (pitu-mcp polls it) |
+
+Flow: pitu-mcp writes `requests/<ts>.json` carrying a `request_id`, then blocks (polling
+`responses/`). The harness routes the request (overwriting `chat_id` from the path),
+dispatches it to the registered capability handler **in a goroutine** (so a slow API call
+never blocks the watch loop), and writes `responses/<request_id>.json` via atomic rename.
+pitu-mcp reads and deletes the response, returning the result to the agent. The watcher
+deletes the request file after routing.
+
+The harness registers its capability handler via `Router.SetCapabilityHandler` (separate
+from the five fire-and-forget outbound handlers passed to `NewRouter`, since capability
+dispatch is an optional request/response path). A router with no capability handler
+rejects `requests/` files with an error rather than dropping them silently.
+
+### Per-chat Capability Gating
+
+Which capability tools an agent sees is controlled per chat. The `chat_capabilities`
+table (`chat_id`, `capability`) is the source of truth. On each message the harness
+queries it and injects `PITU_CAPABILITIES=<comma-separated>` at `podman exec` time;
+pitu-mcp (spawned fresh by that exec) registers only the enabled tool families. The
+always-on `listCapabilities` tool lets the agent honestly report what it can and cannot
+do. Operators manage the table with `pitu capabilities {list,enable,disable}`.
 
 ### TaskFile
 
@@ -419,6 +451,20 @@ The global concurrency cap is enforced by the queue's semaphore channel (`cap = 
 5. Wire the callback in `cmd/pitu/main.go`.
 6. Implement the handler in `cmd/pitu-mcp/tools.go` using `writeIPC` (atomic rename).
 7. Register the MCP tool in `cmd/pitu-mcp/server.go`.
+
+### Adding a new capability (request/response)
+
+Capabilities are agent tools whose results are produced by the harness (the agent never
+holds credentials or makes external API calls). They ride the request/response IPC
+primitive rather than the one-way path above.
+
+1. Add the capability name to `knownCapabilities` in `cmd/pitu-mcp/capabilities.go`.
+2. Register its tools in `registerCapabilityTools` (each handler calls `dispatchCapability`,
+   which writes a `CapabilityRequest` and blocks for the `CapabilityResponse`).
+3. Add a `case "<name>":` to `handleCapabilityRequest` in `cmd/pitu/main.go` that does the
+   real work (e.g. the external API call) and populates the `CapabilityResponse`. Keep the
+   work inside the goroutine the handler already spawns so the IPC watch loop never blocks.
+4. Enable it per chat with `pitu capabilities enable --chat <id> --capability <name>`.
 
 ### Adding a new bundled skill
 
