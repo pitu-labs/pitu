@@ -354,6 +354,28 @@ func TestWatcher_RegisterDir_RemediatesExistingLoosePerms(t *testing.T) {
 	}
 }
 
+func TestRegisterDir_CreatesRequestsAndResponses(t *testing.T) {
+	root := t.TempDir()
+	r := ipc.NewRouter(
+		func(ipc.OutboundMessage) {},
+		func(ipc.TaskFile) {},
+		func(ipc.GroupFile) {},
+		func(ipc.AgentFile) {},
+		func(ipc.ReactionFile) {},
+	)
+	w, err := ipc.NewWatcher(r)
+	require.NoError(t, err)
+
+	require.NoError(t, w.RegisterDir(root, "chat-1", "", ""))
+
+	for _, sub := range []string{"requests", "responses"} {
+		info, statErr := os.Stat(filepath.Join(root, sub))
+		require.NoError(t, statErr, "expected %s to exist", sub)
+		assert.True(t, info.IsDir())
+		assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
+	}
+}
+
 func TestRouter_CapabilityRequest_OverridesChatID(t *testing.T) {
 	root := t.TempDir()
 	reqDir := filepath.Join(root, "requests")
