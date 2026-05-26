@@ -1,6 +1,6 @@
 ---
 name: add-gmail
-description: Give the agent Gmail tools (read, send, label, archive, trash) brokered through the harness, gated per chat and by granted scope. Requires configure-google-auth first. Runnable before or after add-gcalendar.
+description: Give the agent Gmail tools (read, send, label, archive, trash) brokered through the harness, gated per chat and by granted scope. Owns the Gmail scope choice and runs the Google auth foundation on demand. Runnable before or after add-gcalendar.
 ---
 
 ## Add Gmail
@@ -9,27 +9,48 @@ This skill guides you through giving a Pitú agent the ability to work with Gmai
 
 This is implementation guidance, not a turnkey script. Write the code in the operator's own fork following the architecture and constraints below.
 
-### Prerequisite: the Google auth foundation
+### Phase 0 — Ensure the Google auth foundation, on demand
 
-This skill depends on `configure-google-auth`. Before doing anything else, check that the Google credential foundation is in place: the host credential file exists with owner-only permissions, and the harness can load it and mint access tokens.
+This skill depends on `configure-google-auth`, but the operator does not need to have run it first. Begin by checking whether the foundation is bootstrapped — the GCP OAuth client is configured and the host-side broker mechanism and "authorize scopes" operation are in place.
 
-It is fine to run this skill before or after `add-gcalendar` — they are independent of each other and both depend only on the shared foundation. If the foundation is missing, stop and direct the operator to run `configure-google-auth` first, then return here.
+- If the foundation is not bootstrapped, run `configure-google-auth`'s setup now (on demand) to bootstrap it, then continue here.
+- If it is already bootstrapped, continue.
 
-Then check that the granted scopes recorded by the foundation actually cover the Gmail access the operator wants. If the operator wants to send mail but only the read scope was granted, the send tools must not be created — direct the operator to re-run the foundation's consent step and grant a broader Gmail tier, then return. Surfacing this gap now, at install time, is far better than letting the agent discover at call time that a tool it sees does not actually work.
+This is the only thing this skill needs from the foundation's setup; everything else about Gmail — which scopes, which tools — is owned here.
+
+### Phase 1 — Choose the Gmail access tier (this skill owns this)
+
+The foundation is deliberately ignorant of Gmail. This skill owns the Gmail scope vocabulary. Offer the operator these tiers and map the choice to the corresponding Google scope:
+
+| Tier | Google scope | What it allows |
+|------|--------------|----------------|
+| read | gmail.readonly | Read messages and labels only. |
+| read + modify | gmail.modify | Read, send, draft, label, archive, and move to trash. Trash is reversible. Does **not** allow permanent deletion. Recommended default. |
+| full | mail.google.com | Everything above plus permanent, irreversible deletion. Offer only if explicitly asked; present it as the visibly larger, riskier choice it is. |
+
+The reason "modify" is the recommended default: moving a message to trash is recoverable, so an agent mistake (or a manipulated instruction) is reversible, whereas permanent deletion is not. Make the safe tier the easy default and the destructive tier a deliberate opt-in.
+
+### Phase 2 — Authorize the chosen scope through the foundation
+
+Hand the chosen Gmail scope to the foundation's "authorize scopes" operation. Because that operation uses incremental authorization, this consent **adds** Gmail's scope to whatever the operator previously granted (for example, Calendar) without disturbing it — the operator sees a consent screen for the Gmail access and approves it. The foundation persists the accumulated union of granted scopes and the newest refresh token; you do not manage credentials here.
+
+Also remind the operator to enable the Gmail API for the project if they have not already.
+
+If the operator later wants to change Gmail's access level, they re-run this skill and pick a different tier; the foundation re-authorizes incrementally.
 
 ### The brokered model (unchanged from the foundation)
 
-Every Gmail tool follows the broker principle established by `configure-google-auth`: the tool the agent calls does not talk to Google. It sends a capability request through Pitú's existing request/response channel; the harness, where the credentials live, performs the Gmail API call and returns the result. Credentials never enter the container. Keep this boundary — do not let a Gmail tool read credentials or call Google directly from inside the agent's environment.
+Every Gmail tool follows the broker principle: the tool the agent calls does not talk to Google. It sends a capability request through Pitú's existing request/response channel; the harness, where the credentials live, performs the Gmail API call and returns the result. Credentials never enter the container. Keep this boundary — do not let a Gmail tool read credentials or call Google directly from inside the agent's environment.
 
-### The tool surface to implement
+### Phase 3 — The tool surface to implement
 
 Provide tools that cover the breadth of Gmail, not just reading and sending. Group them by the scope tier they require, and only create the tools the granted scope actually permits:
 
 - Available with the **read** scope (and above): search messages with Gmail's query syntax, fetch a specific message's content, and list the account's labels.
-- Available with the **read + modify** scope (and above): send a message, create or update a draft, apply and remove labels on a message, archive a message, move a message to trash, and restore a message from trash, and mark messages read or unread.
+- Available with the **read + modify** scope (and above): send a message, create or update a draft, apply and remove labels on a message, archive a message, move a message to trash, restore a message from trash, and mark messages read or unread.
 - Available only with the **full** scope: permanently delete a message. Because this is irreversible, keep it behind the full tier and treat it as the exceptional, explicitly-granted operation it is — never as part of the ordinary toolset.
 
-Whatever the granted scope permits should be expressed as distinct, well-described tools so the agent can choose precisely. Each tool's description is load-bearing: a tightly written description improves the agent's tool selection more than adding more tools does, so describe each operation and its parameters clearly and honestly, including what it does not do (for example, that "trash" is reversible and is not permanent deletion).
+Express whatever the granted scope permits as distinct, well-described tools. Each tool's description is load-bearing: a tightly written description improves the agent's tool selection more than adding more tools does, so describe each operation and its parameters clearly and honestly, including what it does not do (for example, that "trash" is reversible and is not permanent deletion).
 
 ### Scope gating
 
@@ -43,9 +64,9 @@ Building the tools does not turn them on. Gmail is enabled for a specific chat b
 
 ### How the agent should handle failures
 
-Provide the runtime agent with guidance (through its context, not as part of this operator skill) for the errors brokered Gmail calls can return, so it behaves sensibly:
+Provide the runtime agent with guidance (through its context, not as part of this operator skill) for the errors brokered Gmail calls can return:
 
-- When an operation is refused for lack of scope, or the stored authorization has expired or been revoked, the agent should not retry. It should tell the user the capability needs operator attention and name the relevant step (re-running the auth consent with a broader tier, or re-authorizing).
+- When an operation is refused for lack of scope, or the stored authorization has expired or been revoked, the agent should not retry. It should tell the user the capability needs operator attention and name the relevant step (re-running this skill with a broader tier, or re-authorizing).
 - When Google rate-limits a request, the agent should respect the indicated wait; if the wait is long, surface it to the user rather than blocking the turn.
 - For ordinary "not found" or invalid-argument outcomes, the agent should treat them as expected data conditions and adjust, rather than as failures to report.
 

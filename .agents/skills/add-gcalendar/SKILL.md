@@ -1,6 +1,6 @@
 ---
 name: add-gcalendar
-description: Give the agent Google Calendar tools (list, read, free/busy, create, update, delete events) brokered through the harness, gated per chat and by granted scope. Requires configure-google-auth first. Runnable before or after add-gmail.
+description: Give the agent Google Calendar tools (list, read, free/busy, create, update, delete events) brokered through the harness, gated per chat and by granted scope. Owns the Calendar scope choice and runs the Google auth foundation on demand. Runnable before or after add-gmail.
 ---
 
 ## Add Google Calendar
@@ -9,26 +9,44 @@ This skill guides you through giving a Pitú agent the ability to work with Goog
 
 This is implementation guidance, not a turnkey script. Write the code in the operator's own fork following the architecture and constraints below.
 
-### Prerequisite: the Google auth foundation
+### Phase 0 — Ensure the Google auth foundation, on demand
 
-This skill depends on `configure-google-auth`. Before doing anything else, check that the Google credential foundation is in place: the host credential file exists with owner-only permissions, and the harness can load it and mint access tokens.
+This skill depends on `configure-google-auth`, but the operator does not need to have run it first. Begin by checking whether the foundation is bootstrapped — the GCP OAuth client is configured and the host-side broker mechanism and "authorize scopes" operation are in place.
 
-It is fine to run this skill before or after `add-gmail` — they are independent of each other and both depend only on the shared foundation. If the foundation is missing, stop and direct the operator to run `configure-google-auth` first, then return here.
+- If the foundation is not bootstrapped, run `configure-google-auth`'s setup now (on demand) to bootstrap it, then continue here.
+- If it is already bootstrapped, continue.
 
-Then check that the granted scopes recorded by the foundation cover the Calendar access the operator wants. If the operator wants the agent to create or change events but only the read scope was granted, the write tools must not be created — direct the operator to re-run the foundation's consent step and grant the read + write Calendar tier, then return.
+It is fine to run this skill before or after `add-gmail` — they are independent of each other and both depend only on the shared foundation.
+
+### Phase 1 — Choose the Calendar access tier (this skill owns this)
+
+The foundation is deliberately ignorant of Calendar. This skill owns the Calendar scope vocabulary. Offer the operator these tiers and map the choice to the corresponding Google scope:
+
+| Tier | Google scope | What it allows |
+|------|--------------|----------------|
+| read | calendar.readonly | Read calendars, events, and free/busy. |
+| read + write | calendar | Read plus create, update, and delete events. |
+
+Unlike Gmail, Calendar has no separate "permanent delete" distinction — deleting an event is a single write operation, included in the read + write tier.
+
+### Phase 2 — Authorize the chosen scope through the foundation
+
+Hand the chosen Calendar scope to the foundation's "authorize scopes" operation. Because that operation uses incremental authorization, this consent **adds** Calendar's scope to whatever the operator previously granted (for example, Gmail) without disturbing it — the operator sees a consent screen for the Calendar access and approves it. The foundation persists the accumulated union of granted scopes and the newest refresh token; you do not manage credentials here.
+
+Also remind the operator to enable the Calendar API for the project if they have not already. If the operator later wants to change Calendar's access level, they re-run this skill and pick a different tier; the foundation re-authorizes incrementally.
 
 ### The brokered model (unchanged from the foundation)
 
-Every Calendar tool follows the broker principle established by `configure-google-auth`: the tool the agent calls does not talk to Google. It sends a capability request through Pitú's existing request/response channel; the harness, where the credentials live, performs the Calendar API call and returns the result. Credentials never enter the container. Keep this boundary.
+Every Calendar tool follows the broker principle: the tool the agent calls does not talk to Google. It sends a capability request through Pitú's existing request/response channel; the harness, where the credentials live, performs the Calendar API call and returns the result. Credentials never enter the container. Keep this boundary.
 
-### The tool surface to implement
+### Phase 3 — The tool surface to implement
 
 Provide tools that cover the breadth of Calendar, grouped by the scope tier they require, creating only those the granted scope permits:
 
 - Available with the **read** scope (and above): list the account's calendars, list and search events within a calendar and time range, fetch a specific event's details, and query free/busy availability across calendars.
 - Available with the **read + write** scope: create an event, update an existing event, delete an event, respond to an invitation, and propose or find a suitable meeting time.
 
-Note that, unlike Gmail, Calendar has no separate "permanent delete" distinction — deleting an event is a single write operation, included in the read + write tier. Express each operation as a distinct, clearly described tool; as with any capability, a precise description of what each tool does and what parameters it takes improves the agent's tool selection more than a larger, vaguer toolset would.
+Express each operation as a distinct, clearly described tool; as with any capability, a precise description of what each tool does and what parameters it takes improves the agent's tool selection more than a larger, vaguer toolset would.
 
 ### Scope gating
 
