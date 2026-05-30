@@ -54,9 +54,9 @@ Express whatever the granted scope permits as distinct, well-described tools. Ea
 
 ### Scope gating
 
-The set of tools the agent sees must be derived from the scopes recorded in the credential file — not from a separate switch. If the operator later narrows the Gmail scope, the corresponding tools should simply stop being offered on the next run, with no other change needed. This keeps the agent's actual abilities and the operator's granted permissions from ever drifting apart, and it means the destructive tools are absent unless the operator deliberately enabled the tier that includes them.
+The set of tools the agent sees must be derived from the Gmail scope name strings the harness injects into the container at `podman exec` time (see `configure-google-auth`'s Phase 3) — not by reading any credential file from inside the container, and not from a separate switch. The container has no access to the credential file and is never told its path; the scope strings (for example `gmail.readonly`, `gmail.modify`) are the only Gmail-related information it holds. If the operator later narrows the Gmail scope, the new strings the harness injects cause the corresponding tools to simply stop being offered on the next run, with no other change needed. This keeps the agent's actual abilities and the operator's granted permissions from ever drifting apart, and it means the destructive tools are absent unless the operator deliberately enabled the tier that includes them.
 
-The authoritative check of whether an operation is allowed happens in the harness, against the granted scopes — the same place the API call is made. Tool gating in the agent's view is for ergonomics and honesty; the scope check on the harness side is the real enforcement.
+The authoritative check of whether an operation is allowed happens on the host, in the harness's Gmail handler, against the granted scopes — the same place the API call is made. Tool gating in the agent's view is for ergonomics and honesty; the scope check on the harness side is the real enforcement.
 
 ### Per-chat enablement
 

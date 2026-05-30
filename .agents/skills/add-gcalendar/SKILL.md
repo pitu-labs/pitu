@@ -50,7 +50,7 @@ Express each operation as a distinct, clearly described tool; as with any capabi
 
 ### Scope gating
 
-Derive the set of tools the agent sees from the scopes recorded in the credential file, not from a separate switch. If the operator later narrows Calendar to read-only, the write tools should simply stop being offered on the next run. The authoritative check that an operation is allowed happens in the harness, against the granted scopes, at the point the API call is made; the agent-side tool gating is for ergonomics and honesty.
+Derive the set of tools the agent sees from the Calendar scope name strings the harness injects into the container at `podman exec` time (see `configure-google-auth`'s Phase 3) — not by reading any credential file from inside the container, and not from a separate switch. The container has no access to the credential file and is never told its path; the scope strings (for example `calendar.readonly`, `calendar`) are the only Calendar-related information it holds. If the operator later narrows Calendar to read-only, the write tools should simply stop being offered on the next run. The authoritative check that an operation is allowed happens on the host, in the harness's Calendar handler, against the granted scopes, at the point the API call is made; the container-side tool gating is for ergonomics and honesty.
 
 ### Per-chat enablement
 

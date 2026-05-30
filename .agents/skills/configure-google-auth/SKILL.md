@@ -43,6 +43,8 @@ Walk the operator through this in the Google Cloud console, waiting for confirma
 - Create an OAuth client credential of the type that matches their environment: a desktop-application client for a machine with a browser, or a limited-input-device client for a headless or SSH setup. The two client types support different consent flows, so this choice must match Phase 0.
 - Download the client credential file Google provides and store its path where the foundation can read it (alongside the foundation's own configuration on the host). The client identifier and secret are not the sensitive long-lived secret — the refresh token obtained after consent is.
 
+The client identifier, the client secret, the credential file Google supplies, and any path or config pointer to any of them are host-only artefacts. They are not passed into the container — not as env vars, not via mounts, not embedded in any context file — even though they are not the long-lived secret. Keeping them host-only preserves the rule that the container learns nothing about how host credentials are stored; carving an exception for "the non-sensitive parts" reintroduces the very metadata leak the boundary forbids.
+
 This is the entire bootstrap. After it, the foundation is ready to authorize scopes on request, but holds no user grant yet.
 
 ### Phase 2 — The reusable "authorize scopes" operation (the heart of the foundation)
@@ -63,6 +65,12 @@ Two real-world cautions to handle: Google caps the number of refresh tokens per 
 
 The foundation does **not** define any service tiers or pick any scopes. It only authorizes the scopes it is handed.
 
+### Before implementing — a boundary self-check
+
+Before writing any code that crosses the host↔container line, answer this question honestly: **does any part of your design require the container to know how host credentials are stored — their path, filename, presence flag, or shape?** If yes, the design is wrong even if no token bytes actually cross. The container is allowed to learn three things and three things only: the chat id, the enabled capability names, and the granted scope name strings (for example `gmail.readonly` — the *name* of the scope, not the file it came from). Anything else — a path, a filename, an `exists?` boolean, a hash, a config snippet pointing at credential storage — is drift back toward "the container is a trusted partner," which is the model this skill exists to refuse.
+
+The drift case to recognise: scope-gating logic placed *inside* the container needs scope information, and the path of least resistance is to point the container at the credential file (a path env var, a small mount, "just a read-only peek"). Don't take that path. Do the scope-gating on the host and inject only the resulting allow-list. Phase 3 makes that placement explicit.
+
 ### Phase 3 — Harness-side credential loading and token brokering
 
 In the harness (the host-side process, not the container), build:
@@ -70,6 +78,7 @@ In the harness (the host-side process, not the container), build:
 - A loader that reads and validates the credential file, rejecting it if its permissions are too loose or its refresh token is missing.
 - A token source that turns the stored refresh token into short-lived access tokens, refreshing automatically and caching only in memory. The refresh token must never be written anywhere else or logged, and access tokens must never be persisted or sent through the IPC channel.
 - A single dispatch entry point the harness routes Google capability requests to. The foundation provides the wiring; each service skill fills in the behavior for its own operations. When you check whether a requested operation is permitted, check it here, against the granted scopes recorded in the credential file — never trust the container's claim about what it is allowed to do.
+- A scope-gating placement that lives **on the host**, not in the container. At `podman exec` time, the harness derives the agent's tool allow-list from the credential file's granted scopes and injects only the resulting strings — capability names alongside per-capability scope name lists (for example `PITU_GMAIL_SCOPES=gmail.readonly,gmail.modify`) — into the container's environment, alongside the per-chat `PITU_CAPABILITIES` list the core already passes. The container's MCP server uses those strings to decide which tools to register, and that is the only Google-related information it ever holds. The container has no knowledge of the credential file's existence, path, or contents. The authoritative permission check still happens on the host at the point of each API call, so a tool the harness should refuse is refused even if the container somehow registered it; the container-side gate is for ergonomics and honesty, not enforcement.
 
 ### Phase 4 — Verify
 
@@ -77,7 +86,7 @@ Verify by behavior, not by forcing a grant: confirm the bootstrap is complete (t
 
 ### Security constraints to preserve (non-negotiable)
 
-- Credentials stay on the host. Never mount, copy, or expose the credential file, refresh token, or access tokens to a container, the skills mount, or any agent-readable location.
+- Credentials stay on the host. Never mount, copy, or expose the credential file, refresh token, or access tokens to a container, the skills mount, or any agent-readable location. The same prohibition extends to *metadata about* those credentials — their path, filename, existence flag, hash, or shape — which must never be injected into the container as env vars, config, or context. Only the *result* of using the credentials (the granted scope name strings) crosses the boundary.
 - Scope minimization is the primary defense, and the incremental-authorization design makes it the default: the stored grant only ever contains scopes for services the operator actually enabled. Never broaden a request beyond what the calling service asked for.
 - The chat identity is derived by the harness from the filesystem path, never taken from the container's payload. Keep that invariant when wiring Google requests.
 - The agent can never grant itself a capability or a scope. Authorizing scopes and enabling a service for a chat are always operator actions; the agent may, at most, observe and report what it currently has.
