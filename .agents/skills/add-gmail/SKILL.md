@@ -9,6 +9,8 @@ This skill guides you through giving a Pitú agent the ability to work with Gmai
 
 This is implementation guidance, not a turnkey script. Write the code in the operator's own fork following the architecture and constraints below.
 
+The same division of labor as `configure-google-auth` applies: the operator does the Google Cloud console steps (enabling the Gmail API, approving consent in their browser) and you do the rest directly — building the tools, wiring the handler, rebuilding the image, and running the enablement command on the operator's behalf. Do not hand the operator a list of commands to run that you could run yourself.
+
 ### Phase 0 — Ensure the Google auth foundation, on demand
 
 This skill depends on `configure-google-auth`, but the operator does not need to have run it first. Begin by checking whether the foundation is bootstrapped — the GCP OAuth client is configured and the host-side broker mechanism and "authorize scopes" operation are in place.
@@ -60,7 +62,7 @@ The authoritative check of whether an operation is allowed happens on the host, 
 
 ### Per-chat enablement
 
-Building the tools does not turn them on. Gmail is enabled for a specific chat by the operator through Pitú's existing per-chat capability controls — the same mechanism `view-capabilities` lists and that enables or disables a capability for a chat by name. The agent never enables Gmail for itself; this is always an operator decision. A chat with Gmail enabled sees the Gmail tools on its next message; a chat without it sees none of them and carries none of their context cost.
+Building the tools does not turn them on. Gmail is enabled for a specific chat through Pitú's existing per-chat capability controls — the same mechanism `view-capabilities` lists, which enables or disables a capability for a chat by name. Keep two distinct agents separate here: the **runtime agent inside the container can never enable Gmail for itself** — that security invariant stands. But you, the operator's coding agent running this install skill, should perform the enablement command yourself once the operator confirms which chat to enable it for, rather than printing the command for them to paste. Confirm the target chat (an authorization decision), then run it. A chat with Gmail enabled sees the Gmail tools on its next message; a chat without it sees none of them and carries none of their context cost.
 
 ### How the agent should handle failures
 
@@ -69,6 +71,8 @@ Provide the runtime agent with guidance (through its context, not as part of thi
 - When an operation is refused for lack of scope, or the stored authorization has expired or been revoked, the agent should not retry. It should tell the user the capability needs operator attention and name the relevant step (re-running this skill with a broader tier, or re-authorizing).
 - When Google rate-limits a request, the agent should respect the indicated wait; if the wait is long, surface it to the user rather than blocking the turn.
 - For ordinary "not found" or invalid-argument outcomes, the agent should treat them as expected data conditions and adjust, rather than as failures to report.
+
+Install this guidance as a runtime skill — a `SKILL.md` the running agent loads, either shipped built-in (under `internal/skills/builtin/assets/`) or written to `~/.pitu/skills/`. Note the consequence: a **built-in runtime skill only reaches containers after you rebuild the image and restart**, so the guidance (and any new tools) will not appear until that rebuild — which is a step you perform as part of this install, not one you delegate or skip.
 
 ### Verify
 

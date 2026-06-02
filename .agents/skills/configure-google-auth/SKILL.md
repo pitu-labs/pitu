@@ -11,6 +11,14 @@ Crucially, this foundation knows nothing about which Google services exist — n
 
 This is implementation guidance, not a turnkey script. Write the code in the operator's own fork following the architecture and constraints below. Pitú's contribution model keeps discretionary features out of the upstream core — they live in each user's instance, installed via skills like this one.
 
+### Division of labor — who does what
+
+Some steps genuinely require the operator; most do not. Be deliberate about the difference, and do not hand the operator a checklist of steps you are capable of performing yourself.
+
+**The operator must do (you cannot):** the Google Cloud console work — create the project, configure the OAuth consent screen, create and download the OAuth client credential — and approve the consent screen in their browser when the authorize operation runs. Walk them through these and wait at each one.
+
+**You do directly (do not offload):** writing and editing configuration, building the binaries, wiring the harness, exposing the operator-facing command, and rebuilding the container image. The operator chose to run this skill; that choice is their consent for the mechanical setup. Pause only for the console steps above, for the browser consent, and for any genuinely destructive or ambiguous decision — never to delegate a copy-paste, a config edit, or a build you could run. Offloading automatable work back to the operator is the most common failure mode of this skill; treat it as a defect, not a courtesy.
+
 ### When this runs
 
 Google service skills run this foundation **on demand**: when the operator chooses to install a service, that service's skill ensures the foundation exists (running this skill's setup first if needed), then asks it to authorize that service's scopes. The operator does not need to run this skill explicitly first.
@@ -57,13 +65,15 @@ Implement it using Google's **incremental authorization**: request the new scope
 
 The operation must:
 
-- Run the consent flow appropriate to the environment, auto-detected with an override: the browser-based loopback flow when a local browser is available, and the device flow — which prints a short URL and code the operator opens on any other device, such as a phone — when the host is headless or reached over SSH. Detect "headless" from the absence of a local display or the presence of an SSH session, and allow the operator to force either flow.
+- Run the consent flow appropriate to the environment, auto-detected with an override: the browser-based loopback flow when a local browser is available, and the device flow — which prints a short URL and code the operator opens on any other device, such as a phone — when the host is headless or reached over SSH. Detect "headless" from the absence of a local display or the presence of an SSH session, and allow the operator to force either flow. **Both flows must exist; do not collapse this to device-flow-only.** On a machine with a browser the loopback flow is the default, and it is the robust path: Google's device flow is a restricted grant that pairs poorly with sensitive service scopes (Gmail in particular) and requires the limited-input client type from Phase 1, so a device-only implementation both regresses the common browser case and risks failing consent outright. The flow is selected by detection, never by dropping one of the two.
 - Request offline access and force a fresh consent prompt, because Google only returns the long-lived refresh token under those conditions. If consent succeeds but no refresh token comes back (which happens when the app was authorized before), tell the operator to revoke the app's access in their Google account security settings and run the operation again.
 - Persist the result to a single host file under the operator's Pitú configuration directory, readable and writable only by the owner, written atomically. Store the client identifier and secret, the **newest** refresh token returned, the accumulated **union** of granted scopes, and a timestamp. Always treat that stored union as the source of truth for what the agent is allowed to do.
 
 Two real-world cautions to handle: Google caps the number of refresh tokens per client and user, so re-consenting repeatedly can rotate older tokens out — always persist the newest token you receive. And the credential loader must refuse to use the file if its permissions are looser than owner-only.
 
 The foundation does **not** define any service tiers or pick any scopes. It only authorizes the scopes it is handed.
+
+**Where the operator-facing command lives (interface).** Expose "authorize scopes" and a way to inspect the current grant as a `pitu auth` subcommand — for example `pitu auth authorize` and `pitu auth scopes` — dispatched inline in `cmd/pitu/main.go` exactly as the existing `pitu service` and `pitu capabilities` subcommands already are, and reusing `internal/config` to read the credential and grant paths. Do **not** create a second binary for this. A separate `cmd/pitu-auth` would have to duplicate config loading, and it adds an install artefact that every build, ship, and service-management step then has to track or silently drop. One binary, one subcommand surface, consistent with what is already there.
 
 ### Before implementing — a boundary self-check
 

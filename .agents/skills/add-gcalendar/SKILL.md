@@ -9,6 +9,8 @@ This skill guides you through giving a Pitú agent the ability to work with Goog
 
 This is implementation guidance, not a turnkey script. Write the code in the operator's own fork following the architecture and constraints below.
 
+The same division of labor as `configure-google-auth` applies: the operator does the Google Cloud console steps (enabling the Calendar API, approving consent in their browser) and you do the rest directly — building the tools, wiring the handler, rebuilding the image, and running the enablement command on the operator's behalf. Do not hand the operator a list of commands to run that you could run yourself.
+
 ### Phase 0 — Ensure the Google auth foundation, on demand
 
 This skill depends on `configure-google-auth`, but the operator does not need to have run it first. Begin by checking whether the foundation is bootstrapped — the GCP OAuth client is configured and the host-side broker mechanism and "authorize scopes" operation are in place.
@@ -54,7 +56,7 @@ Derive the set of tools the agent sees from the Calendar scope name strings the 
 
 ### Per-chat enablement
 
-Building the tools does not turn them on. Calendar is enabled for a specific chat by the operator through Pitú's existing per-chat capability controls — the same mechanism `view-capabilities` lists. The agent never enables Calendar for itself. A chat with Calendar enabled sees the tools on its next message; a chat without it sees none of them.
+Building the tools does not turn them on. Calendar is enabled for a specific chat through Pitú's existing per-chat capability controls — the same mechanism `view-capabilities` lists. Keep two distinct agents separate here: the **runtime agent inside the container can never enable Calendar for itself** — that security invariant stands. But you, the operator's coding agent running this install skill, should perform the enablement command yourself once the operator confirms which chat to enable it for, rather than printing the command for them to paste. Confirm the target chat (an authorization decision), then run it. A chat with Calendar enabled sees the tools on its next message; a chat without it sees none of them.
 
 Because the agent can also schedule recurring or one-shot work through Pitú's existing scheduling, a Calendar-enabled chat can be asked to do things like check the day's agenda each morning — the agent schedules itself, and when it fires it uses these brokered Calendar tools. No separate scheduling mechanism is needed for Calendar.
 
@@ -66,6 +68,8 @@ Provide the runtime agent with guidance (through its context, not as part of thi
 - When a request is rate-limited, respect the indicated wait, surfacing long waits to the user rather than blocking the turn.
 - Treat "not found" (for example, an event that no longer exists) and invalid-argument outcomes as expected data conditions to adjust to, not failures to report.
 - For write operations on shared calendars where the account lacks permission, report the permission problem plainly rather than retrying.
+
+Install this guidance as a runtime skill — a `SKILL.md` the running agent loads, either shipped built-in (under `internal/skills/builtin/assets/`) or written to `~/.pitu/skills/`. Note the consequence: a **built-in runtime skill only reaches containers after you rebuild the image and restart**, so the guidance (and any new tools) will not appear until that rebuild — which is a step you perform as part of this install, not one you delegate or skip.
 
 ### Verify
 
